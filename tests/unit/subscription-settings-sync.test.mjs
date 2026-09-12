@@ -219,3 +219,19 @@ test('an unrelated later local edit does not retimestamp a conflicting channel',
   assert.equal(synced.second.value.dailyVideoLimit, 4)
   assert.equal(synced.second.updatedAt, baseTime + 3)
 })
+
+test('newly subscribing a retained remote channel imports its settings without a local edit', async () => {
+  const store = createStore([])
+  const client = createClient([{ key, value: { channel: { dailyVideoLimit: 7 } }, updatedAt: 100 }])
+  const previous = await context.syncSettings(client, store)
+  for (const profile of store.state.profiles.profileList) {
+    profile.subscriptions.push({ id: 'channel' })
+  }
+  await context.syncSettings(client, store, previous)
+  for (const profile of store.state.profiles.profileList) {
+    assert.equal(profile.subscriptions[0].dailyVideoLimit, 7)
+  }
+  const synced = client.entries.find(entry => entry.key === key).value.channel
+  assert.equal(synced.value.dailyVideoLimit, 7)
+  assert.equal(synced.updatedAt, 100)
+})

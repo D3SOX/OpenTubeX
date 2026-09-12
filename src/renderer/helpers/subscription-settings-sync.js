@@ -22,12 +22,13 @@ export function mergeSubscriptionSettingsEntry(options) {
   const value = { ...remote }
   let updatedAt = options.remoteEntry?.updatedAt ?? options.old?.updatedAt ?? 0
   for (const [channelId, settings] of Object.entries(options.value)) {
+    const localUpdatedAt = options.localUpdatedAt?.[channelId]
     const entry = mergeSettingEntry({
       key: channelId,
       value: settings,
-      old: options.old?.value?.[channelId],
+      old: localUpdatedAt === undefined ? undefined : options.old?.value?.[channelId],
       remoteEntry: remote[channelId],
-      localUpdatedAt: options.localUpdatedAt?.[channelId],
+      localUpdatedAt,
       now: options.now
     })
     value[channelId] = { value: entry.value, updatedAt: entry.updatedAt }

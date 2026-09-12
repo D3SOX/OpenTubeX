@@ -5014,7 +5014,8 @@ test.describe('synced setting indicators', () => {
     await manager.getByRole('button', { name: 'Stop syncing this setting' }).click()
     await expect(manager.getByRole('button', { name: 'Sync this setting' })).toHaveAttribute('aria-pressed', 'false')
     await manager.getByRole('button', { name: 'Subscription settings', exact: true }).click()
-    const enable = page.getByRole('button', { name: 'Sync this setting', exact: true })
+    const enable = page.locator('.settingsWindow .settingsBreadcrumb')
+      .getByRole('button', { name: 'Sync this setting', exact: true })
     await expect(enable).toBeVisible()
     await enable.click()
     await expect.poll(() => page.evaluate(() => {
