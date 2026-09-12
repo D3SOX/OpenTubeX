@@ -188,8 +188,8 @@ const showFullDescription = ref(false)
 const showControls = ref(false)
 const descriptionFadeTop = ref(false)
 const copyButtonOverlapsExpandControl = ref(false)
-// a video can have games but no description, and there is nothing to expand or collapse then,
-// so treat it as expanded. `measureDescription` can't do it, it bails out on a zero height element.
+// Outside preview mode, show games even when there is no description to expand.
+// `measureDescription` cannot expand empty content because it skips zero-height elements.
 const isExpanded = computed(() => !props.previewOnly && (props.alwaysExpanded || shownDescription === '' || showFullDescription.value))
 
 if (props.descriptionHtml !== '') {
