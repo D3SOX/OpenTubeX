@@ -171,7 +171,9 @@ const actions = {
     }
   },
 
-  async updateChannelSettings({ commit, state }, { channelId, settings }) {
+  async updateChannelSettings({ commit, state }, { channelId, settings, fromSync = false, updatedAt }) {
+    if (fromSync && (!Number.isFinite(updatedAt) || updatedAt < 0)) return false
+
     const primarySubscription = state.profileList[0].subscriptions
       .find(channel => channel.id === channelId)
     if (primarySubscription === undefined) return false
@@ -200,6 +202,7 @@ const actions = {
       .map(profile => profile._id)
 
     try {
+      channel.subscriptionSettingsUpdatedAt = fromSync ? updatedAt : Date.now()
       const updatedProfileIds = await DBProfileHandlers.updateChannelSettings(channel, profileIds)
       if (!Array.isArray(updatedProfileIds)) return false
 

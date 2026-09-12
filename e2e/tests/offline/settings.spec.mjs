@@ -1243,19 +1243,18 @@ test.describe('settings', () => {
     await expect(page).toHaveURL(url)
     await expect(page.locator(sel.activeTab)).toContainText(activeTab)
     const windowIcon = page.locator('.settingsWindowIcon')
-    const breadcrumbLabel = page.locator('.settingsBreadcrumbLabel').first()
     await expect(windowIcon).toBeVisible()
     await expect(windowIcon).toHaveAttribute('data-icon', 'gear')
     await expect(page.locator('.settingsBreadcrumbCategoryIcon')).toBeVisible()
-    const [iconBounds, labelBounds] = await Promise.all([
-      windowIcon.boundingBox(),
-      breadcrumbLabel.boundingBox()
-    ])
-    // Within a pixel rather than toBeCloseTo's half: both boxes land on
-    // fractional pixels on scaled displays, which is not a misalignment.
-    const iconCenter = iconBounds.y + iconBounds.height / 2
-    const labelCenter = labelBounds.y + labelBounds.height / 2
-    expect(Math.abs(iconCenter - labelCenter)).toBeLessThanOrEqual(1)
+    // Read both boxes in the same animation frame. Separate protocol calls can
+    // measure different positions while the settings window is opening.
+    const centerDifference = await page.locator('.settingsBreadcrumb').evaluate(breadcrumb => {
+      const iconBounds = breadcrumb.querySelector('.settingsWindowIcon').getBoundingClientRect()
+      const labelBounds = breadcrumb.querySelector('.settingsBreadcrumbLabel').getBoundingClientRect()
+      return Math.abs((iconBounds.y + iconBounds.height / 2) - (labelBounds.y + labelBounds.height / 2))
+    })
+    // Allow fractional-pixel rounding at non-100% UI scales.
+    expect(centerDifference).toBeLessThanOrEqual(1)
     await expect(page.getByRole('button', {
       name: 'Highlight settings changed from defaults'
     }).locator('[data-icon="pen"]')).toBeVisible()
@@ -5006,6 +5005,26 @@ test.describe('synced setting indicators', () => {
         syncServerToken: 'e2e-sync-token'
       }
     }
+  })
+
+  test('shares the subscription settings sync toggle between its button and subpage', async ({ page }) => {
+    const section = await goToSettingsSection(page, 'subscription')
+    const manager = section.locator('.manageButton').filter({ hasText: 'Subscription settings' })
+    await manager.getByRole('button', { name: 'Stop syncing this setting' }).click()
+    await expect(manager.getByRole('button', { name: 'Sync this setting' })).toHaveAttribute('aria-pressed', 'false')
+    await manager.getByRole('button', { name: 'Subscription settings', exact: true }).click()
+    const enable = page.locator('.settingsWindow .settingsBreadcrumb')
+      .getByRole('button', { name: 'Sync this setting', exact: true })
+    await expect(enable).toBeVisible()
+    await enable.click()
+    await expect.poll(() => page.evaluate(() => {
+      const store = document.querySelector('#app').__vue_app__.config.globalProperties.$store
+      return store.state.settings.syncServerSettingsExcluded
+    })).not.toContain('subscriptionChannelSettings')
+    await page.reload()
+    const reloaded = await goToSettingsSection(page, 'subscription')
+    await expect(reloaded.locator('.manageButton').filter({ hasText: 'Subscription settings' })
+      .getByRole('button', { name: 'Stop syncing this setting' })).toBeVisible()
   })
 
   test('allows account sync to be disabled per setting', async ({ page }) => {

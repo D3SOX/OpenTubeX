@@ -1,3 +1,4 @@
+import * as subscriptionSettingsSync from '../../src/renderer/helpers/subscription-settings-sync.js'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -45,6 +46,7 @@ function fixture (overrides = {}, { encrypted = false, respond } = {}) {
     ...overrides,
   }
   const common = {
+    ...subscriptionSettingsSync,
     ...errors,
     showToast: options => notifications.push(options),
     showToastOnAllTabs: (message, time, icon, buttonAction) => notifications.push({
@@ -111,6 +113,11 @@ function fixture (overrides = {}, { encrypted = false, respond } = {}) {
     },
     dispatch: async (action, value) => {
       dispatched.push([action, value])
+      if (action === 'updateChannelSettings') {
+        const channel = context.rootState.profiles.profileList[0].subscriptions.find(channel => channel.id === value.channelId)
+        Object.assign(channel, value.settings, { subscriptionSettingsUpdatedAt: value.updatedAt })
+        return true
+      }
       if (action === 'setSyncServerAutoSync') return store.exports.actions.setSyncServerAutoSync(context, value)
       if (action === 'applySyncServerEnabled') return store.exports.actions.applySyncServerEnabled(context, value)
       if (action === 'mergeSubscriptionSeenVideos') {
