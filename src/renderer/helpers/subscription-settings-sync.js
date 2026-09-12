@@ -42,8 +42,11 @@ export async function applySubscriptionSettingsSync(store, value) {
 
   for (const channel of store.state.profiles.profileList[0].subscriptions) {
     if (!Object.hasOwn(value, channel.id)) continue
+    const updatedAt = value[channel.id]?.updatedAt
+    if (!Number.isFinite(updatedAt) || updatedAt < 0) {
+      throw new Error('Invalid subscription settings timestamp')
+    }
     const settings = normalizeSubscriptionChannelSettings(value[channel.id].value)
-    const updatedAt = value[channel.id].updatedAt
     if (channel.subscriptionSettingsUpdatedAt === updatedAt &&
         areJsonValuesEqual(normalizeSubscriptionChannelSettings(channel), settings)) continue
     const saved = await store.dispatch('updateChannelSettings', { channelId: channel.id, settings, fromSync: true, updatedAt })

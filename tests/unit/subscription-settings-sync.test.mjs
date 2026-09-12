@@ -274,4 +274,21 @@ test('a failed channel write cannot advance the saved edit timestamp', async () 
   assert.deepEqual(module.state.profileList[0].subscriptions[0], persistedChannel)
   assert.equal(await module.actions.updateChannelSettings(actionContext, { channelId: 'channel', settings: { dailyVideoLimit: 3 }, fromSync: true, updatedAt: 300 }), true)
   assert.equal(persistedChannel.subscriptionSettingsUpdatedAt, 300)
+  for (const updatedAt of [undefined, null, '100', -1, NaN, Infinity]) {
+    assert.equal(await module.actions.updateChannelSettings(actionContext, { channelId: 'channel', settings: { dailyVideoLimit: 4 }, fromSync: true, updatedAt }), false)
+    assert.equal(persistedChannel.subscriptionSettingsUpdatedAt, 300)
+    assert.equal(persistedChannel.dailyVideoLimit, 3)
+    assert.equal(module.state.profileList[0].subscriptions[0].subscriptionSettingsUpdatedAt, 300)
+  }
+})
+
+test('rejects invalid remote edit times before dispatching channel settings', async () => {
+  for (const updatedAt of [undefined, null, '100', -1, NaN, Infinity]) {
+    const store = createStore([{ id: 'channel', dailyVideoLimit: 1, subscriptionSettingsUpdatedAt: 100 }])
+    store.dispatch = () => assert.fail('Invalid timestamps must not be dispatched')
+    await assert.rejects(subscriptionSync.applySubscriptionSettingsSync(store, {
+      channel: { value: { dailyVideoLimit: 2 }, updatedAt },
+    }), /Invalid subscription settings timestamp/)
+    assert.equal(store.state.profiles.profileList[0].subscriptions[0].subscriptionSettingsUpdatedAt, 100)
+  }
 })

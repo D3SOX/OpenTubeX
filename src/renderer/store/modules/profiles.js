@@ -172,6 +172,8 @@ const actions = {
   },
 
   async updateChannelSettings({ commit, state }, { channelId, settings, fromSync = false, updatedAt }) {
+    if (fromSync && (!Number.isFinite(updatedAt) || updatedAt < 0)) return false
+
     const primarySubscription = state.profileList[0].subscriptions
       .find(channel => channel.id === channelId)
     if (primarySubscription === undefined) return false
