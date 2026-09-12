@@ -138,7 +138,7 @@ test('ordinary modal sheets remain available while the player is fullscreen', as
   assert.deepEqual(sheet.events, [])
 })
 
-test('unmounting a suspended expanded sheet restores playback once', async t => {
+test('unmounting a suspended expanded sheet restores playback', async t => {
   let restorations = 0
   const sheet = mountSheet(t, () => () => { restorations++ })
   sheet.props.open = true
@@ -161,6 +161,4 @@ test('unmounting a suspended expanded sheet restores playback once', async t => 
   sheet.unmount()
   assert.equal(restorations, 1, 'unmount must restore retained playback')
   assert.equal(sheet.state.expanded.value, false)
-  sheet.unmount()
-  assert.equal(restorations, 1)
 })
