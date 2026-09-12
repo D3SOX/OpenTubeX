@@ -200,11 +200,11 @@ const actions = {
       .map(profile => profile._id)
 
     try {
+      if (!fromSync) await dispatch('recordSubscriptionSettingsEdit', channelId)
       const updatedProfileIds = await DBProfileHandlers.updateChannelSettings(channel, profileIds)
       if (!Array.isArray(updatedProfileIds)) return false
 
       if (updatedProfileIds.length > 0) {
-        if (!fromSync) await dispatch('recordSubscriptionSettingsEdit', channelId)
         commit('updateChannelSettings', { channel, profileIds: updatedProfileIds })
       }
       return updatedProfileIds.length === profileIds.length

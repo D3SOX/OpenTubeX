@@ -235,3 +235,66 @@ test('newly subscribing a retained remote channel imports its settings without a
   assert.equal(synced.value.dailyVideoLimit, 7)
   assert.equal(synced.updatedAt, 100)
 })
+
+test('timestamp write failures prevent channel persistence and do not block a later retry', async () => {
+  const [settingsSource, profilesSource] = await Promise.all([
+    readFile(new URL('../../src/renderer/store/modules/settings.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/renderer/store/modules/profiles.js', import.meta.url), 'utf8'),
+  ])
+  let failTimestamp = true
+  let persistedChannel = { id: 'channel', dailyVideoLimit: 1 }
+  const writes = []
+  const settingsState = { syncServerSettingUpdatedAt: {} }
+  const persistenceContext = vm.createContext({
+    MAIN_PROFILE_ID: 'allChannels', THEME_BG_COLOR: '#000000', THEME_TEXT_COLOR: '#ffffff',
+    deepCopy: structuredClone,
+    isSettingSyncable: () => true,
+    console: { error() {} },
+    DBSettingHandlers: {
+      async upsert() {
+        writes.push('timestamp')
+        if (failTimestamp) throw new Error('Timestamp write failed')
+      },
+    },
+    DBProfileHandlers: {
+      async updateChannelSettings(channel, ids) {
+        writes.push('channel')
+        persistedChannel = structuredClone(channel)
+        return ids
+      },
+    },
+  })
+  vm.runInContext(settingsSource.slice(
+    settingsSource.indexOf('let settingSyncTimestampWrite ='),
+    settingsSource.indexOf('const customState =')
+  ), persistenceContext)
+  vm.runInContext(profilesSource
+    .replace(/^import[\s\S]*? from ['"][^'"]+['"]\n/gm, '')
+    .replace('export default {', 'globalThis.profileModule = {'), persistenceContext)
+  const module = persistenceContext.profileModule
+  module.state.profileList[0].subscriptions = [structuredClone(persistedChannel)]
+  const commit = (mutation, payload) => {
+    if (mutation === 'setSyncServerSettingUpdatedAt') settingsState.syncServerSettingUpdatedAt = payload
+    else module.mutations[mutation](module.state, payload)
+  }
+  const actionContext = {
+    state: module.state,
+    commit,
+    dispatch: async (action, channelId) => {
+      assert.equal(action, 'recordSubscriptionSettingsEdit')
+      await persistenceContext.recordSettingSyncTimestamp(commit, settingsState, key, channelId)
+    },
+  }
+  const edit = { channelId: 'channel', settings: { dailyVideoLimit: 2 } }
+  assert.equal(await module.actions.updateChannelSettings(actionContext, edit), false)
+  assert.deepEqual(writes, ['timestamp'])
+  assert.equal(persistedChannel.dailyVideoLimit, 1)
+  assert.equal(module.state.profileList[0].subscriptions[0].dailyVideoLimit, 1)
+
+  failTimestamp = false
+  assert.equal(await module.actions.updateChannelSettings(actionContext, edit), true)
+  assert.deepEqual(writes, ['timestamp', 'timestamp', 'channel'])
+  assert.equal(persistedChannel.dailyVideoLimit, 2)
+  assert.equal(module.state.profileList[0].subscriptions[0].dailyVideoLimit, 2)
+  assert.ok(settingsState.syncServerSettingUpdatedAt[key].channel > 0)
+})

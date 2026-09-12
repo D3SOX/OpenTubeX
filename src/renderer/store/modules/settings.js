@@ -855,7 +855,7 @@ let settingSyncTimestampWrite = Promise.resolve()
 function recordSettingSyncTimestamp(commit, settings, settingId, channelId) {
   if (!isSettingSyncable(settingId) && settingId !== CUSTOM_THEMES_SYNC_KEY) return
 
-  settingSyncTimestampWrite = settingSyncTimestampWrite.then(async () => {
+  const write = settingSyncTimestampWrite.then(async () => {
     const current = settings.syncServerSettingUpdatedAt !== null &&
       typeof settings.syncServerSettingUpdatedAt === 'object' &&
       !Array.isArray(settings.syncServerSettingUpdatedAt)
@@ -869,11 +869,14 @@ function recordSettingSyncTimestamp(commit, settings, settingId, channelId) {
     }
     await DBSettingHandlers.upsert('syncServerSettingUpdatedAt', updatedAt)
     commit('setSyncServerSettingUpdatedAt', updatedAt)
-  }).catch(error => {
+  })
+  settingSyncTimestampWrite = write.catch(error => {
     console.error('Failed to record the setting sync timestamp', error)
   })
 
-  return settingSyncTimestampWrite
+  // Channel edits must not persist without their conflict timestamp. Keep the
+  // queue usable after a failure so the user can retry the edit.
+  return channelId === undefined ? settingSyncTimestampWrite : write
 }
 
 const customState = {
