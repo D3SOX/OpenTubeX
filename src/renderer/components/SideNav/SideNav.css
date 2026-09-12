@@ -300,11 +300,14 @@
     inset-block: auto 0;
     padding-block-end: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0));
     overflow-y: hidden;
-    transition: transform 180ms ease;
+    transform: translateY(0);
+    transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   .sideNav.scrollHidden:not(:has(:focus-visible)) {
     transform: translateY(100%);
+    transition-duration: 220ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
     pointer-events: none;
   }
 
