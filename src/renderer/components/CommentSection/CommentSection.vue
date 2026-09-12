@@ -592,7 +592,7 @@
         v-if="!isLoading && !isLoadingMoreComments"
         v-observe-visibility="observeVisibilityOptions"
         class="commentAutoLoadSentinel"
-        :class="{ commentAutoLoadSpace: phonePanelHeader && canAutomaticallyLoadMoreComments }"
+        :class="{ commentAutoLoadSpace: canAutomaticallyLoadMoreComments }"
       >
       <!--
         Dummy element to be observed by Intersection Observer
