@@ -1737,7 +1737,7 @@ for (const iconPack of ['material', 'remix']) {
   for (const uiScale of [100, 125]) {
     test.describe(`native snapshot glyph ${iconPack} ${uiScale}%`, () => {
       test.use({ seed: { settings: { videoPlaybackEngine: 'built-in', ytDlpPlaybackEngineDefaultMigration: true, iconPack, uiScale } } })
-      test('keeps the actual pause glyph aligned with the shared control', async ({ app, page }) => {
+      test('keeps the actual pause glyph horizontally aligned with the shared control', async ({ app, page }) => {
         await mockPlayableWatchPage(app, page)
         await openMockedVideo(page)
         await openNativeScreen(page, false)
