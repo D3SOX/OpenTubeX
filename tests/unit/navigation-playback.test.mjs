@@ -75,13 +75,7 @@ function mountWatch(t, { paused = false, hasLoaded = true, mounted = true, enabl
   return {
     props, getters, provides, lifecycle, previewRoot, previewStyle, hostBounds, viewport, listeners, titles, updateTitle,
     disposals: () => disposals,
-    async navigate(path) {
-      const to = { path, fullPath: path, params: {} }
-      await lifecycle.beforeNavigate({ to, from: props.route })
-      props.route = to
-      await nextTick()
-      await lifecycle.afterNavigate({ to })
-    }
+    navigate
   }
 }
 

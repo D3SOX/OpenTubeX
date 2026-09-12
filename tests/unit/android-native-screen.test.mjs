@@ -393,6 +393,7 @@ test('loading poster stays above an empty native surface throughout a drag', asy
   f.container.dispatchEvent(gesture)
   await f.flush()
   assert.equal(f.layouts.at(-1).gestureActive, false)
+  assert.equal(f.layouts.at(-1).controlsVisible, false, 'Loading controls stay hidden while their poster is dragged')
   assert.equal(f.layouts.at(-1).miniPlayer, false)
   assert.equal(f.layouts.at(-1).videoVisible, true, 'Keep rendering below the poster so the first frame can arrive')
   f.change({ loadingPoster: false })

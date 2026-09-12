@@ -309,3 +309,15 @@ test('upward swipe also starts on the mini-player transparent touch layer', t =>
   g.finishMobileFullscreenGesture(event(210, 300, { target }))
   assert.deepEqual(calls.at(-1), ['drag-finish', true])
 })
+
+test('a rejected scroll-mini-player restore never enters fullscreen or retains capture', t => {
+  const { gestures: g, event, calls, captures } = fixture(t, { mini: true, minimize: false })
+  g.startMobileFullscreenGesture(event(210, 300))
+  for (const y of [288, 260, 180]) {
+    assert.equal(g.moveMobileFullscreenGesture(event(210, y)), false)
+    assert.equal(g.mobileFullscreenSwiping.value, false)
+  }
+  assert.equal(g.finishMobileFullscreenGesture(event(210, 180)), false)
+  assert.equal(calls.includes('fullscreen'), false)
+  assert.equal(captures.size, 0)
+})
