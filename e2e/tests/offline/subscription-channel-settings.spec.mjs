@@ -454,16 +454,16 @@ test('records edit times per channel and does not retimestamp received settings'
   const result = await page.evaluate(async (channelId) => {
     const store = document.querySelector('#app').__vue_app__.config.globalProperties.$store
     const secondChannelId = store.state.profiles.profileList[0].subscriptions[1].id
-    const timestamps = () => ({ ...store.state.settings.syncServerSettingUpdatedAt.subscriptionChannelSettings })
+    const timestamps = () => Object.fromEntries(store.state.profiles.profileList[0].subscriptions.map(channel => [channel.id, channel.subscriptionSettingsUpdatedAt]))
     await store.dispatch('updateChannelSettings', { channelId, settings: { dailyVideoLimit: 2 } })
     const firstEdit = timestamps()
     await store.dispatch('updateChannelSettings', { channelId: secondChannelId, settings: { dailyVideoLimit: 3 } })
     const secondEdit = timestamps()
-    await store.dispatch('updateChannelSettings', { channelId, settings: { dailyVideoLimit: 4 }, fromSync: true })
+    await store.dispatch('updateChannelSettings', { channelId, settings: { dailyVideoLimit: 4 }, fromSync: true, updatedAt: 123 })
     return { firstEdit, secondEdit, afterSync: timestamps(), secondChannelId }
   }, CHANNEL_ID)
   expect(result.firstEdit[CHANNEL_ID]).toBeGreaterThan(0)
   expect(result.secondEdit[CHANNEL_ID]).toBe(result.firstEdit[CHANNEL_ID])
   expect(result.secondEdit[result.secondChannelId]).toBeGreaterThan(0)
-  expect(result.afterSync).toEqual(result.secondEdit)
+  expect(result.afterSync).toEqual({ ...result.secondEdit, [CHANNEL_ID]: 123 })
 })

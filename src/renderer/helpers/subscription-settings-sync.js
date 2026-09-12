@@ -11,7 +11,7 @@ export function getSubscriptionSettingsForSync(store) {
     const settings = normalizeSubscriptionChannelSettings(channel)
     // JSON has no undefined value. Omission means "use the global limit".
     if (settings.dailyVideoLimit === undefined) delete settings.dailyVideoLimit
-    return [channel.id, settings]
+    return [channel.id, { value: settings, updatedAt: channel.subscriptionSettingsUpdatedAt }]
   }))
 }
 
@@ -21,11 +21,11 @@ export function mergeSubscriptionSettingsEntry(options) {
   // independently so edits to different channels never overwrite one another.
   const value = { ...remote }
   let updatedAt = options.remoteEntry?.updatedAt ?? options.old?.updatedAt ?? 0
-  for (const [channelId, settings] of Object.entries(options.value)) {
-    const localUpdatedAt = options.localUpdatedAt?.[channelId]
+  for (const [channelId, local] of Object.entries(options.value)) {
+    const localUpdatedAt = local.updatedAt
     const entry = mergeSettingEntry({
       key: channelId,
-      value: settings,
+      value: local.value,
       old: localUpdatedAt === undefined ? undefined : options.old?.value?.[channelId],
       remoteEntry: remote[channelId],
       localUpdatedAt,
@@ -43,8 +43,10 @@ export async function applySubscriptionSettingsSync(store, value) {
   for (const channel of store.state.profiles.profileList[0].subscriptions) {
     if (!Object.hasOwn(value, channel.id)) continue
     const settings = normalizeSubscriptionChannelSettings(value[channel.id].value)
-    if (areJsonValuesEqual(normalizeSubscriptionChannelSettings(channel), settings)) continue
-    const saved = await store.dispatch('updateChannelSettings', { channelId: channel.id, settings, fromSync: true })
+    const updatedAt = value[channel.id].updatedAt
+    if (channel.subscriptionSettingsUpdatedAt === updatedAt &&
+        areJsonValuesEqual(normalizeSubscriptionChannelSettings(channel), settings)) continue
+    const saved = await store.dispatch('updateChannelSettings', { channelId: channel.id, settings, fromSync: true, updatedAt })
     if (!saved) throw new Error('Failed to apply synced subscription settings')
   }
 }

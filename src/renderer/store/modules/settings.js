@@ -852,10 +852,10 @@ export function getSyncableSettingKeys(settings) {
 
 let settingSyncTimestampWrite = Promise.resolve()
 
-function recordSettingSyncTimestamp(commit, settings, settingId, channelId) {
+function recordSettingSyncTimestamp(commit, settings, settingId) {
   if (!isSettingSyncable(settingId) && settingId !== CUSTOM_THEMES_SYNC_KEY) return
 
-  const write = settingSyncTimestampWrite.then(async () => {
+  settingSyncTimestampWrite = settingSyncTimestampWrite.then(async () => {
     const current = settings.syncServerSettingUpdatedAt !== null &&
       typeof settings.syncServerSettingUpdatedAt === 'object' &&
       !Array.isArray(settings.syncServerSettingUpdatedAt)
@@ -863,20 +863,15 @@ function recordSettingSyncTimestamp(commit, settings, settingId, channelId) {
       : {}
     const updatedAt = {
       ...current,
-      [settingId]: channelId === undefined
-        ? Date.now()
-        : { ...current[settingId], [channelId]: Date.now() },
+      [settingId]: Date.now(),
     }
     await DBSettingHandlers.upsert('syncServerSettingUpdatedAt', updatedAt)
     commit('setSyncServerSettingUpdatedAt', updatedAt)
-  })
-  settingSyncTimestampWrite = write.catch(error => {
+  }).catch(error => {
     console.error('Failed to record the setting sync timestamp', error)
   })
 
-  // Channel edits must not persist without their conflict timestamp. Keep the
-  // queue usable after a failure so the user can retry the edit.
-  return channelId === undefined ? settingSyncTimestampWrite : write
+  return settingSyncTimestampWrite
 }
 
 const customState = {
@@ -1024,9 +1019,6 @@ const customActions = {
     ))
     if (value !== state.subscriptionSeenVideos) commit('setSubscriptionSeenVideos', value)
   },
-  recordSubscriptionSettingsEdit: ({ commit, state }, channelId) => (
-    recordSettingSyncTimestamp(commit, state, SUBSCRIPTION_CHANNEL_SETTINGS_SYNC_KEY, channelId)
-  ),
   recordSyncSettingEdit: ({ commit, state }, settingId) => (
     recordSettingSyncTimestamp(commit, state, settingId)
   ),

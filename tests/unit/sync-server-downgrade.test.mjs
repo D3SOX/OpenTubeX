@@ -113,6 +113,11 @@ function fixture (overrides = {}, { encrypted = false, respond } = {}) {
     },
     dispatch: async (action, value) => {
       dispatched.push([action, value])
+      if (action === 'updateChannelSettings') {
+        const channel = context.rootState.profiles.profileList[0].subscriptions.find(channel => channel.id === value.channelId)
+        Object.assign(channel, value.settings, { subscriptionSettingsUpdatedAt: value.updatedAt })
+        return true
+      }
       if (action === 'setSyncServerAutoSync') return store.exports.actions.setSyncServerAutoSync(context, value)
       if (action === 'applySyncServerEnabled') return store.exports.actions.applySyncServerEnabled(context, value)
       if (action === 'mergeSubscriptionSeenVideos') {
