@@ -43,7 +43,7 @@ export function createAndroidNativeScreen({ element, container, getController, g
       endTransition()
       return
     }
-    if (!attached || open || hasVideoCanvas?.()) return
+    if (!attached || open || hasVideoCanvas?.() || container.querySelector('.countdownPoster')) return
     event.preventDefault()
     endGesture()
     const sequence = ++transitionSequence
@@ -57,8 +57,11 @@ export function createAndroidNativeScreen({ element, container, getController, g
     // destination, ready for the handoff once its final clip has been drawn.
     syncInlineBackground(false)
     const rect = ({ x, y, width, height }) => ({ x, y, width, height })
+    const pageScroll = followsPageScroll()
     event.detail.finished = getController().layout({
       ...rect(to),
+      y: to.y + (pageScroll ? window.scrollY : 0),
+      pageScroll,
       viewportWidth: window.innerWidth,
       transition: { from: rect(from), duration, radius: parseFloat(getComputedStyle(container).borderTopLeftRadius) || 0 }
     }).catch(onError).finally(() => {
@@ -70,7 +73,7 @@ export function createAndroidNativeScreen({ element, container, getController, g
   function handleGesture(event) {
     if (!attached || open || hasVideoCanvas?.()) return
     gestureActive = event.detail === true
-    container.toggleAttribute('data-native-player-gesture', gestureActive)
+    container.toggleAttribute('data-native-player-gesture', gestureActive && !container.querySelector('.countdownPoster'))
     // Pointer handlers update Vue geometry in the same turn. Send the final
     // rectangle and reopen the cutout together after that update has rendered.
     scheduleLayout()
@@ -112,7 +115,7 @@ export function createAndroidNativeScreen({ element, container, getController, g
   }
 
   function followsPageScroll() {
-    return !open && !container.classList.contains('scrollMiniPlayer') && !container.classList.contains('fullWindow')
+    return !open && !gestureActive && !container.classList.contains('scrollMiniPlayer') && !container.classList.contains('fullWindow')
   }
 
   function syncInlineBackground(visible) {
@@ -216,6 +219,9 @@ export function createAndroidNativeScreen({ element, container, getController, g
   function syncLayout() {
     frame = null
     if ((!open && !attached) || transitioning) return
+    const poster = Boolean(container.querySelector('.countdownPoster'))
+    const nativeGesture = gestureActive && !poster
+    container.toggleAttribute('data-native-player-gesture', nativeGesture)
     const bounds = element.getBoundingClientRect()
     const sharedControls = container.querySelector('.shaka-controls-container')
     const controlBounds = sharedControls?.getBoundingClientRect() ?? bounds
@@ -258,15 +264,15 @@ export function createAndroidNativeScreen({ element, container, getController, g
       height: bounds.height,
       viewportWidth: window.innerWidth,
       pageScroll,
-      miniPlayer: container.classList.contains('scrollMiniPlayer'),
-      gestureActive,
+      miniPlayer: !poster && (nativeGesture || container.classList.contains('scrollMiniPlayer')),
+      gestureActive: nativeGesture,
       radius: parseFloat(getComputedStyle(container).borderTopLeftRadius) || 0,
       controlsX: controlBounds.x,
       controlsY: nativeY(controlBounds.y),
       controlsWidth: controlBounds.width,
       controlsHeight: controlBounds.height,
       videoVisible: visible,
-      controlsVisible: visible && controlBounds.width > 0 && controlBounds.height > 0 &&
+      controlsVisible: visible && !gestureActive && controlBounds.width > 0 && controlBounds.height > 0 &&
         !container.querySelector('.endedPoster') &&
         !container.classList.contains('scrollMiniPlayer') && sharedControls?.hasAttribute('shown') === true,
       // Android clips and routes touches around these rectangles. A browser

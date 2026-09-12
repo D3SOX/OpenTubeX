@@ -71,7 +71,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   const watchNavigation = inject(watchNavigationKey, null)
   const scrollMiniVideoAspectRatio = ref(DEFAULT_ASPECT_RATIO)
   const scrollMiniPlayerEnabled = computed(() => store.getters.getScrollMiniPlayerEnabled)
-  const scrollMiniPlayerOnAllTabs = computed(() => store.getters.getKeepPlayingOnNavigation || store.getters.getScrollMiniPlayerOnAllTabs)
+  const scrollMiniPlayerOnAllTabs = computed(() => watchNavigation?.minimized?.value || store.getters.getKeepPlayingOnNavigation || store.getters.getScrollMiniPlayerOnAllTabs)
   const autoPictureInPictureOnTabChange = computed(
     () => !store.getters.getKeepPlayingOnNavigation &&
       !(watchNavigation?.detached.value && watchNavigation.tabPresented.value) &&
@@ -99,7 +99,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   const crossTabMiniPlayerCandidate = {
     canShow: () => canShowCrossTabMiniPlayer(),
     hide: () => deactivateScrollMiniPlayer(),
-    show: () => activateScrollMiniPlayer(false),
+    show: () => { if (!inlineDrag) activateScrollMiniPlayer(false) },
   }
 
   const scrollMiniPlayerStyle = computed(() => scrollMiniPlayerRectToStyle(scrollMiniPlayerRect.value))
@@ -145,6 +145,160 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   /** @type {number | null} */
   let scrollMiniScrollFrame = null
 
+  // Cache geometry once. Pointer moves only write a compositor transform, at
+  // most once per frame; the native screen observes the same moving bounds.
+  const scrollMiniPlayerDragStyle = ref(null)
+  let inlineDrag = null
+  let inlineDragFrame = null
+
+  function beginScrollMiniPlayerDrag(restoring = false) {
+    const element = container.value
+    if (inlineDrag || !element || !watchNavigation?.beginMinimizePreview ||
+      scrollMiniPlayerActive.value !== restoring || !canUseScrollMiniPlayerBase()) return false
+    if (restoring && !watchNavigation.detached.value) return false
+    cancelScrollMiniPlayerLayoutAnimation()
+    updateScrollMiniVideoAspectRatio()
+    const from = element.getBoundingClientRect()
+    const saved = getSavedScrollMiniPlayerRect('tab')
+    const to = clampScrollMiniPlayerRect(saved
+      ? reanchorScrollMiniPlayerRect(saved, scrollMiniVideoAspectRatio.value)
+      : getDefaultScrollMiniPlayerRect(scrollMiniVideoAspectRatio.value), scrollMiniVideoAspectRatio.value)
+    inlineDrag = { from, to, y: 0, progress: 0, restoring }
+    if (!restoring) scrollMiniPlaceholderHeight.value = from.height
+    scrollMiniPlayerDragStyle.value = {
+      position: 'fixed',
+      left: `${from.left}px`,
+      top: `${from.top}px`,
+      width: `${from.width}px`,
+      height: `${from.height}px`,
+      margin: '0',
+      zIndex: '150'
+    }
+    if (restoring) {
+      if (!watchNavigation.beginRestorePreview()) {
+        inlineDrag = null
+        scrollMiniPlayerDragStyle.value = null
+        return false
+      }
+      const drag = inlineDrag
+      // The retained Watch page becomes measurable after its overlay is shown.
+      drag.ready = nextTick(() => {
+        if (inlineDrag !== drag) return
+        const bounds = scrollMiniPlaceholder.value.getBoundingClientRect()
+        drag.to = { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }
+        renderScrollMiniPlayerDrag()
+      })
+    } else {
+      watchNavigation.beginMinimizePreview()
+    }
+    element.style.transformOrigin = 'top left'
+    element.style.willChange = 'transform'
+    element.setAttribute('data-inline-mini-drag', '')
+    element.dispatchEvent(new CustomEvent('native-player-gesture', { detail: true }))
+    return true
+  }
+
+  function getInlineDragDistance(drag) {
+    return Math.max(1, Math.abs(drag.to.top - drag.from.y))
+  }
+
+  function renderInlineDragProgress(progress) {
+    const { from, to, restoring } = inlineDrag
+    inlineDrag.progress = progress
+    const fade = Math.min(1, progress * getInlineDragDistance(inlineDrag) / 96)
+    watchNavigation.updateMinimizePreview(restoring ? 1 - progress : fade)
+    const x = (to.left - from.x) * progress
+    const y = (to.top - from.y) * progress
+    const scaleX = 1 + (to.width / from.width - 1) * progress
+    const scaleY = 1 + (to.height / from.height - 1) * progress
+    const roundness = Math.min(1, (restoring ? 1 - progress : progress) * 5)
+    const style = container.value.style
+    style.transform = `translate(${x}px, ${y}px) scale(${scaleX}, ${scaleY})`
+    style.borderRadius = `calc(10px * var(--ui-roundness) * ${roundness})`
+  }
+
+  function renderScrollMiniPlayerDrag() {
+    inlineDragFrame = null
+    if (!inlineDrag || inlineDrag.settling) return
+    renderInlineDragProgress(Math.min(1, Math.abs(inlineDrag.y) / getInlineDragDistance(inlineDrag)))
+  }
+
+  function moveScrollMiniPlayerDrag(_x, y) {
+    if (!inlineDrag || inlineDrag.finishing) return
+    inlineDrag.y = y
+    if (inlineDragFrame === null) inlineDragFrame = requestAnimationFrame(renderScrollMiniPlayerDrag)
+  }
+
+  function settleScrollMiniPlayerDrag(commit) {
+    const drag = inlineDrag
+    const target = commit ? 1 : 0
+    if (isReducedMotionEnabled() || drag.progress === target) {
+      renderInlineDragProgress(target)
+      return Promise.resolve()
+    }
+    drag.settling = true
+    const from = drag.progress
+    const started = performance.now()
+    const duration = SCROLL_MINI_LAYOUT_ANIMATION_DURATION_MS / getAnimationSpeedMultiplier(store.getters.getAnimationSpeed)
+    return new Promise(resolve => {
+      drag.resolveSettle = resolve
+      const frame = now => {
+        inlineDragFrame = null
+        if (inlineDrag !== drag) return resolve()
+        const time = Math.max(0, Math.min(1, (now - started) / duration))
+        const progress = 1 - (1 - time) ** 3
+        renderInlineDragProgress(from + (target - from) * progress)
+        if (time === 1) resolve()
+        else inlineDragFrame = requestAnimationFrame(frame)
+      }
+      inlineDragFrame = requestAnimationFrame(frame)
+    })
+  }
+
+  function cancelScrollMiniPlayerDrag() {
+    if (inlineDragFrame !== null) cancelAnimationFrame(inlineDragFrame)
+    inlineDragFrame = null
+    inlineDrag?.resolveSettle?.()
+    inlineDrag = null
+    scrollMiniPlayerDragStyle.value = null
+    watchNavigation?.clearMinimizePreview()
+    if (!scrollMiniPlayerActive.value) scrollMiniPlaceholderHeight.value = 0
+    const element = container.value
+    if (!element) return
+    element.style.removeProperty('transform')
+    element.style.removeProperty('transform-origin')
+    element.style.removeProperty('will-change')
+    element.style.removeProperty('border-radius')
+    element.removeAttribute('data-inline-mini-drag')
+    element.dispatchEvent(new CustomEvent('native-player-gesture', { detail: false }))
+  }
+
+  async function finishScrollMiniPlayerDrag(commit) {
+    if (!inlineDrag || inlineDrag.finishing) return
+    const drag = inlineDrag
+    drag.finishing = true
+    await drag.ready
+    if (inlineDrag !== drag || !container.value) return
+    if (inlineDragFrame !== null) cancelAnimationFrame(inlineDragFrame)
+    renderScrollMiniPlayerDrag()
+    await settleScrollMiniPlayerDrag(commit)
+    if (inlineDrag !== drag || !container.value) return
+    // Navigation and layout changes happen behind the completed preview, after
+    // the video has reached the same endpoint as the normal mini-player motion.
+    await watchNavigation.finishMinimizePreview(commit)
+    if (inlineDrag !== drag || !container.value) return
+    if (drag.restoring && commit) {
+      deactivateScrollMiniPlayer()
+    } else if (commit && watchNavigation.detached.value) {
+      activateScrollMiniPlayer(false)
+      scrollMiniPlayerStashedSide.value = null
+      scrollMiniPlayerRestoreRect = null
+      applyScrollMiniPlayerRect(drag.to, false, true)
+    }
+    cancelScrollMiniPlayerDrag()
+    updateScrollMiniPlayer({ animateActivation: false })
+  }
+
   function updateScrollMiniVideoAspectRatio() {
     const videoElement = video.value
     if (!videoElement?.videoWidth || !videoElement.videoHeight) {
@@ -176,6 +330,9 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   }
 
   function getScrollMiniPlaceholderLayoutHeight() {
+    // Navigation hides the retained Watch view before it teleports the player.
+    // The drag's original measurement remains valid during that handoff.
+    if (inlineDrag) return Math.max(inlineDrag.from.height, inlineDrag.from.width * 9 / 16)
     return getScrollMiniInlineLayoutHeight(container.value, lastKnownInlinePlayerHeight)
   }
 
@@ -414,7 +571,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
       !autoPictureInPictureOnTabChange.value &&
       scrollMiniPlayerOnAllTabs.value &&
       canUseScrollMiniPlayerBase() &&
-      (isCrossTabMiniPlayerOwner(crossTabMiniPlayerCandidate) || !videoElement.paused)
+      (watchNavigation?.minimized?.value || isCrossTabMiniPlayerOwner(crossTabMiniPlayerCandidate) || !videoElement.paused)
   }
 
   function canUseScrollMiniPlayer() {
@@ -754,6 +911,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
 
   /** @param {{ animateActivation?: boolean }} [options] */
   function updateScrollMiniPlayer({ animateActivation = true } = {}) {
+    if (inlineDrag) return
     if (!isActiveTab.value) {
       refreshCrossTabMiniPlayer(crossTabMiniPlayerCandidate)
     }
@@ -879,6 +1037,10 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
 
     if (scrollMiniPlayerDetached.value && tabId) {
       if (watchNavigation?.detached.value) {
+        if (watchNavigation.tabPresented.value && beginScrollMiniPlayerDrag(true)) {
+          finishScrollMiniPlayerDrag(true)
+          return
+        }
         watchNavigation.returnToVideo()
       }
       if (process.env.IS_CAPACITOR) {
@@ -898,6 +1060,10 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
 
     if (!scrollMiniPlayerDetached.value) return
 
+    if (watchNavigation?.detached.value) {
+      watchNavigation.dismiss()
+      return
+    }
     scrollMiniPlayerDismissed.value = true
   }
 
@@ -1181,7 +1347,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   })
 
   watch(isActiveTab, (active) => {
-    if (scrollMiniPlayerActive.value) {
+    if (scrollMiniPlayerActive.value && !inlineDrag) {
       // A tab switch can change modes without deactivating the mini player.
       // Cancel unfinished gestures so they cannot overwrite the new mode's position.
       cancelScrollMiniPlayerBounce()
@@ -1233,6 +1399,11 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
   )
 
   return {
+    scrollMiniPlayerDragStyle,
+    beginScrollMiniPlayerDrag,
+    moveScrollMiniPlayerDrag,
+    finishScrollMiniPlayerDrag,
+    cancelScrollMiniPlayerDrag,
     deactivateScrollMiniPlayer,
     dismissCrossTabMiniPlayer,
     handleFullscreenButtonClick,

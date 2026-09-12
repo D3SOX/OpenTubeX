@@ -112,7 +112,7 @@ public class AndroidPlaybackPlugin extends Plugin {
                         return;
                     }
                     screen.animateVideo(origin, target, Math.max(0, Math.min(1200, transition.optLong("duration", 300))),
-                        (float) Math.max(0, Math.min(1000, transition.optDouble("radius", 0))), call::resolve);
+                        (float) Math.max(0, Math.min(1000, transition.optDouble("radius", 0))), call.getBoolean("pageScroll", false), call::resolve);
                     return;
                 }
                 screen.setFollowsPageScroll(call.getBoolean("pageScroll", false));

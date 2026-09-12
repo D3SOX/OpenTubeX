@@ -4155,6 +4155,15 @@ html[data-reduced-motion='reduce'] .musicVisualizerCanvas {
   pointer-events: none;
 }
 
+.ftVideoPlayer[data-inline-mini-drag] {
+  overflow: clip;
+  isolation: isolate;
+}
+
+.ftVideoPlayer[data-inline-mini-drag] > .player {
+  border-radius: inherit;
+}
+
 .ftVideoPlayer.scrollMiniPlayer {
   box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
   border-radius: calc(10px * var(--ui-roundness));

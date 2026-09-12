@@ -3734,8 +3734,36 @@ export default defineComponent({
       videoZoomPanReady.value = videoZoomPointerInside && videoZoomPannable.value && event.shiftKey
     }
 
+    // Teleporting the player releases Chromium's pointer capture. Keep the
+    // active stream on window so a fast swipe can finish outside the player.
+    const playerPointerIds = new Set()
+    function trackPlayerPointer(event) {
+      playerPointerIds.add(event.pointerId)
+      window.addEventListener('pointermove', handlePlayerPointerMove, true)
+      window.addEventListener('pointerup', handlePlayerPointerEnd, true)
+      window.addEventListener('pointercancel', handlePlayerPointerEnd, true)
+    }
+    function handlePlayerPointerMove(event) {
+      if (playerPointerIds.has(event.pointerId)) handleVideoZoomPointerMove(event)
+    }
+    function handlePlayerPointerEnd(event) {
+      if (!playerPointerIds.has(event.pointerId)) return
+      playerPointerIds.delete(event.pointerId)
+      if (!playerPointerIds.size) clearPlayerPointers()
+      if (event.type === 'pointercancel') handleVideoZoomPointerCancel(event)
+      else handleVideoZoomPointerUp(event)
+    }
+    function clearPlayerPointers() {
+      playerPointerIds.clear()
+      window.removeEventListener('pointermove', handlePlayerPointerMove, true)
+      window.removeEventListener('pointerup', handlePlayerPointerEnd, true)
+      window.removeEventListener('pointercancel', handlePlayerPointerEnd, true)
+    }
+    onBeforeUnmount(clearPlayerPointers)
+
     /** @param {PointerEvent} event */
     function handleVideoZoomPointerDown(event) {
+      trackPlayerPointer(event)
       if (event.pointerType === 'touch' && !event.isPrimary && temporaryPlaybackRatePointerId !== null) {
         temporaryPlaybackRatePointerCancelled = true
         finishTemporaryPlaybackRateHold(TEMPORARY_PLAYBACK_RATE_POINTER_SOURCE)
@@ -4923,14 +4951,20 @@ export default defineComponent({
         ? store.getters[side === 'left' ? 'getMobileLeftSwipeAction' : 'getMobileRightSwipeAction']
         : 'disabled',
       adjustments: mobileAdjustments,
+      miniPlayerDrag: {
+        begin: restoring => beginScrollMiniPlayerDrag(restoring),
+        move: (x, y) => moveScrollMiniPlayerDrag(x, y),
+        finish: commit => finishScrollMiniPlayerDrag(commit),
+        cancel: () => cancelScrollMiniPlayerDrag(),
+      },
       setFullscreenMetadata,
       setShowUiOnPaused,
       showOverlayControls,
       togglePlayerFullScreen: () => ui?.getControls().toggleFullScreen(),
     })
 
-    function resetMobileAdjustments() {
-      cancelMobileFullscreenGesture()
+    function resetMobileAdjustments(preserveGesture = false) {
+      if (!preserveGesture) cancelMobileFullscreenGesture()
       mobileAdjustments.reset()
     }
 
@@ -6513,6 +6547,11 @@ export default defineComponent({
         : null
     }
     const {
+      scrollMiniPlayerDragStyle,
+      beginScrollMiniPlayerDrag,
+      moveScrollMiniPlayerDrag,
+      finishScrollMiniPlayerDrag,
+      cancelScrollMiniPlayerDrag,
       deactivateScrollMiniPlayer,
       dismissCrossTabMiniPlayer,
       handleFullscreenButtonClick,
@@ -6579,8 +6618,10 @@ export default defineComponent({
       isActiveTab.value && !scrollMiniPlayerActive.value && mobileAdjustmentsVisible.value &&
       isFullscreen.value && store.getters.getMobileFullscreenBrightness)
     watch(mobileFullscreenBrightnessActive, enabled => mobileAdjustments.setFullscreenBrightness(Boolean(enabled)))
-    watch([isActiveTab, scrollMiniPlayerActive, mobileAdjustmentsVisible, () => props.videoId], () => {
-      resetMobileAdjustments()
+    watch([isActiveTab, scrollMiniPlayerActive, mobileAdjustmentsVisible, () => props.videoId], ([active, , visible, videoId], [, , , previousVideoId]) => {
+      // Revealing retained Watch during an upward drag presents this player
+      // again. That transition must not cancel the gesture that caused it.
+      resetMobileAdjustments(Boolean(scrollMiniPlayerDragStyle.value && active && visible && videoId === previousVideoId))
       if (mobileFullscreenBrightnessActive.value) mobileAdjustments.setFullscreenBrightness(true)
     })
     watch(() => [store.getters.getMobileLeftSwipeAction, store.getters.getMobileRightSwipeAction], () => {
@@ -11623,6 +11664,7 @@ export default defineComponent({
       scrollMiniPlayerDismissed,
       scrollMiniPlaceholderHeight,
       scrollMiniPlayerStyle,
+      scrollMiniPlayerDragStyle,
       scrollMiniPlayerStashed,
       scrollMiniPlayerStashedSide,
       scrollMiniIsPaused,
