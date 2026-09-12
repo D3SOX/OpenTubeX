@@ -7,7 +7,7 @@ import { computed, effectScope, nextTick, reactive, ref, shallowRef, watch } fro
 const source = (await readFile(new URL('../../src/renderer/components/FtMobileSheet/FtMobileSheet.vue', import.meta.url), 'utf8'))
   .split('<script setup>')[1].split('</script>')[0].replace(/^import .*\n/gm, '')
 
-function mountSheet(t) {
+function mountSheet(t, expandPanel = null) {
   const scope = effectScope()
   const cleanup = []
   const landscape = ref(false)
@@ -20,6 +20,7 @@ function mountSheet(t) {
   })
   const element = {
     open: false, style: {},
+    getBoundingClientRect: () => ({ top: 300, height: 500 }),
     show() { this.open = true }, showModal() { this.open = true }, close() { this.open = false },
     animate: () => ({ cancel() {}, finished: Promise.resolve() }), querySelector: () => null
   }
@@ -35,16 +36,18 @@ function mountSheet(t) {
     isAppHidden: () => !!document.hidden,
     defineProps: () => props, defineEmits: () => (...args) => events.push(args),
     useTemplateRef: () => dialog, usePhoneLayout: () => landscape,
-    inject: name => name === 'phonePanelPlayer' ? () => player : null,
+    inject: name => name === 'phonePanelPlayer' ? () => player : name === 'expandPhonePanel' ? expandPanel : null,
+    performance,
     onBeforeUnmount: callback => cleanup.push(callback), onUpdated() {},
     MutationObserver: class { observe() {} disconnect() {} },
     ResizeObserver: class { observe() {} disconnect() {} },
     applyAnimationSpeed: animation => animation, lockBodyScroll() {}, unlockBodyScroll() {},
     matchMedia: () => ({ matches: true }), getComputedStyle: () => ({ transform: 'none', opacity: 1 })
   }
-  scope.run(() => vm.runInNewContext(source + '\nglobalThis.state = { expanded, updatePresentation, sheetStyle };', context))
-  t.after(() => { cleanup.forEach(callback => callback()); scope.stop() })
-  return { ...context, element, player, props, landscape, events,
+  scope.run(() => vm.runInNewContext(source + '\nglobalThis.state = { expanded, updatePresentation, sheetStyle, startDrag, moveDrag, endDrag };', context))
+  const unmount = () => { cleanup.splice(0).forEach(callback => callback()); scope.stop() }
+  t.after(unmount)
+  return { ...context, element, player, props, landscape, events, unmount,
     async settle() { await nextTick(); await nextTick(); await nextTick() }
   }
 }
@@ -133,4 +136,31 @@ test('ordinary modal sheets remain available while the player is fullscreen', as
   await sheet.settle()
   assert.equal(sheet.element.open, true)
   assert.deepEqual(sheet.events, [])
+})
+
+test('unmounting a suspended expanded sheet restores playback once', async t => {
+  let restorations = 0
+  const sheet = mountSheet(t, () => () => { restorations++ })
+  sheet.props.open = true
+  await sheet.settle()
+  const event = {
+    button: 0, pointerId: 1, clientY: 400,
+    target: { closest: () => null },
+    currentTarget: { setPointerCapture() {} }
+  }
+  sheet.state.startDrag(event)
+  sheet.state.moveDrag({ ...event, clientY: 300 })
+  sheet.state.endDrag(event)
+  await sheet.settle()
+  assert.equal(sheet.state.expanded.value, true)
+  sheet.player.coversWindow = true
+  sheet.state.updatePresentation()
+  await sheet.settle()
+  assert.equal(sheet.element.open, false)
+  assert.equal(restorations, 0, 'suspension must preserve the playback callback')
+  sheet.unmount()
+  assert.equal(restorations, 1, 'unmount must restore retained playback')
+  assert.equal(sheet.state.expanded.value, false)
+  sheet.unmount()
+  assert.equal(restorations, 1)
 })

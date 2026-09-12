@@ -305,6 +305,10 @@ function dismiss() {
 
 function release(preservePresentation = false) {
   closing = false
+  if (!preservePresentation) {
+    expanded.value = false
+    restorePlayback()
+  }
   if (!locked) return
   const anotherPanelOpen = document.querySelector('.dockedSheet[open]') !== null
   if (!anotherPanelOpen) getPlayer?.()?.removeAttribute('data-phone-panel-video')
@@ -313,10 +317,6 @@ function release(preservePresentation = false) {
   window.removeEventListener('scroll', measurePlayer, true)
   window.visualViewport?.removeEventListener('resize', measurePlayer)
   animation?.cancel()
-  if (!preservePresentation) {
-    expanded.value = false
-    restorePlayback()
-  }
   cancelDrag()
   unlockBodyScroll()
   locked = false
