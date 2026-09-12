@@ -474,3 +474,20 @@ test('mini control transition completion refreshes snapshots while scrolling', a
   }
   f.screen.destroy()
 })
+
+for (const scale of [1, 2]) {
+  test(`native layout and animation preserve fractional viewport width at visual scale ${scale}`, async () => {
+    const f = await fixture({ fullscreen: false })
+    f.window.innerWidth = 461
+    f.window.visualViewport = { width: 460.79998779296875 / scale, scale }
+    f.change({})
+    await f.flush()
+    assert.equal(f.layouts.at(-1).viewportWidth, 460.79998779296875)
+    const event = new Event('native-player-transition', { cancelable: true })
+    event.detail = { from: f.bounds, to: { ...f.bounds, x: 205 }, duration: 300 }
+    f.container.dispatchEvent(event)
+    await event.detail.finished
+    assert.equal(f.layouts.findLast(layout => layout.transition).viewportWidth, 460.79998779296875)
+    f.screen.destroy()
+  })
+}

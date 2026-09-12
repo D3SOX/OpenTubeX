@@ -32,6 +32,13 @@ export function createAndroidNativeScreen({ element, container, getController, g
   let globalElementsDirty = true
   const appChromeSelector = '.topNav, .sideNav, .tabBar, .capacitorTabletTabBar'
 
+  function nativeViewportWidth() {
+    // innerWidth rounds CSS pixels, shifting the raised native layer at Android
+    // display scales. Undo visual zoom to retain the layout viewport's precision.
+    const viewport = window.visualViewport
+    return viewport?.width * viewport?.scale || window.innerWidth
+  }
+
   function endTransition() {
     if (!transitioning) return
     transitionSequence++
@@ -66,7 +73,7 @@ export function createAndroidNativeScreen({ element, container, getController, g
       ...rect(to),
       y: to.y + (pageScroll ? window.scrollY : 0),
       pageScroll,
-      viewportWidth: window.innerWidth,
+      viewportWidth: nativeViewportWidth(),
       transition: { from: rect(from), duration, radius: parseFloat(getComputedStyle(container).borderTopLeftRadius) || 0 }
     }).catch(onError).finally(() => {
       if (transitionSequence === sequence) return endTransition()
@@ -270,7 +277,7 @@ export function createAndroidNativeScreen({ element, container, getController, g
       y: nativeY(bounds.y),
       width: bounds.width,
       height: bounds.height,
-      viewportWidth: window.innerWidth,
+      viewportWidth: nativeViewportWidth(),
       pageScroll,
       miniPlayer: !poster && (nativeGesture || container.classList.contains('scrollMiniPlayer')),
       gestureActive: nativeGesture,

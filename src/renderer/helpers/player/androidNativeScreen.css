@@ -75,7 +75,6 @@
 /* Android moves the live texture above the page during mini-player motion.
    Shared controls resume at the destination after the native animation. */
 [data-native-player-transition],
-[data-native-player-scrolling],
 [data-native-player-gesture] {
   box-shadow: none !important;
 }

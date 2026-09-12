@@ -93,6 +93,9 @@ function copyStyle(source, target, pseudo) {
 function cloneStyled(source) {
   const clone = source.cloneNode(false)
   copyStyle(source, clone)
+  // Preserve FtIcon's centering rule: WebView sometimes reports its resolved
+  // SVG auto margins as zero even while the live glyph remains centered.
+  if (source.matches('.ft-icon__glyph')) clone.style.marginInline = 'auto'
   if (source instanceof HTMLInputElement) clone.setAttribute('value', source.value)
   for (const child of source.childNodes) {
     clone.append(child.nodeType === Node.ELEMENT_NODE ? cloneStyled(child) : child.cloneNode(true))

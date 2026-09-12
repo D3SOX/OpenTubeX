@@ -421,13 +421,15 @@ for (const uiScale of [100, 125]) {
       await expect(page.locator('[data-native-player-backdrop]')).toBeAttached()
       await expect.poll(() => page.evaluate(() => window.nativeLayoutTest.miniPlayer)).toBe(true)
       const result = await page.evaluate(async () => {
-        window.nativeScreenTest.action('scroll-start')
         const player = document.querySelector('.ftVideoPlayer')
+        const shadow = getComputedStyle(player).boxShadow
+        window.nativeScreenTest.action('scroll-start')
         const beforeScroll = window.scrollY
         window.scrollBy(0, 180)
         await new Promise(resolve => requestAnimationFrame(resolve))
         const scrolled = window.scrollY > beforeScroll
         const duringScroll = getComputedStyle(player.querySelector('.scrollMiniPlayerControls')).visibility
+        const shadowRetained = shadow !== 'none' && getComputedStyle(player).boxShadow === shadow
         const calls = []
         window.nativeScreenTestController.layout = async value => calls.push(value)
         window.nativeScreenTest.action('scroll-end')
@@ -438,6 +440,7 @@ for (const uiScale of [100, 125]) {
         const context = document.createElement('canvas').getContext('2d')
         return {
           duringScroll,
+          shadowRetained,
           scrolled,
           restored: getComputedStyle(player.querySelector('.scrollMiniPlayerControls')).visibility,
           occluded: context.isPointInPath(new Path2D(clip), bounds.x + bounds.width / 2 - origin.x,
@@ -445,7 +448,7 @@ for (const uiScale of [100, 125]) {
           refreshedBeforeHandoff: calls[0].miniPlayer && calls[1].endScroll,
         }
       })
-      expect(result).toEqual({ duringScroll: 'visible', scrolled: true, restored: 'visible', occluded: false, refreshedBeforeHandoff: true })
+      expect(result).toEqual({ duringScroll: 'visible', shadowRetained: true, scrolled: true, restored: 'visible', occluded: false, refreshedBeforeHandoff: true })
       await page.evaluate(() => window.nativeScreenTest.destroy())
     })
     test('keeps a transparent rounded video window and an opaque themed page', async ({ app, page }) => {
@@ -1763,7 +1766,24 @@ for (const iconPack of ['material', 'remix']) {
             snapshot.destroy()
             resolve({ image, width: bounds.width, height: bounds.height, button: { x: button.x - bounds.x, y: button.y - bounds.y, width: button.width, height: button.height } })
           }, reject)
-          snapshot.update(root, bounds.width, bounds.height, false)
+          // Android WebView can expose unresolved SVG auto margins as 0px
+          // even though its live layout centers the glyph inside the wrapper.
+          const computedStyle = window.getComputedStyle
+          window.getComputedStyle = (element, pseudo) => {
+            const style = computedStyle(element, pseudo)
+            if (!element.matches('.ft-icon__glyph')) return style
+            return new Proxy(style, {
+              get(target, property) {
+                if (property === 'getPropertyValue') {
+                  return name =>
+                    ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'].includes(name) ? '0px' : target.getPropertyValue(name)
+                }
+                const value = Reflect.get(target, property, target)
+                return typeof value === 'function' ? value.bind(target) : value
+              }
+            })
+          }
+          try { snapshot.update(root, bounds.width, bounds.height, false) } finally { window.getComputedStyle = computedStyle }
         }))
         const reference = await button.screenshot()
         const positions = await page.evaluate(async ({ snapshot, reference }) => {
