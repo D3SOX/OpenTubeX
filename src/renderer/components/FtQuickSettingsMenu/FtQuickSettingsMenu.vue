@@ -443,6 +443,7 @@ import { localeTranslationPercentages } from '../../i18n/index'
 import { colors } from '../../helpers/colors'
 import { OPEN_COMMAND_PALETTE_EVENT } from '../../helpers/commandPalette'
 import { useColorTranslations } from '../../composables/colors'
+import { androidDynamicColors } from '../../helpers/dynamicColors'
 import { useBaseThemeNames } from '../../composables/baseThemes'
 import { useThumbnailSizeSlider } from '../../composables/useThumbnailSizeSlider'
 import {
@@ -506,10 +507,12 @@ const builtInBaseThemeNames = useBaseThemeNames()
 const customThemes = computed(() => store.getters.getCustomThemes)
 const baseThemeValues = computed(() => [
   ...BUILTIN_BASE_THEME_VALUES,
+  ...(androidDynamicColors.value.supported ? ['dynamic'] : []),
   ...customThemes.value.map(({ id }) => customThemeValue(id))
 ])
 const baseThemeNames = computed(() => [
   ...builtInBaseThemeNames.value,
+  ...(androidDynamicColors.value.supported ? [t('Settings.Theme Settings.Base Theme.Dynamic colors')] : []),
   ...customThemes.value.map(({ name }) => name)
 ])
 const systemThemeOptions = computed(() => {
