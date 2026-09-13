@@ -77,6 +77,8 @@ test('switching back from dynamic colors or a custom-theme preview restores the 
   applyThemeToDocument('dynamic', 'Red', 'Blue', null)
   assert.equal(classes.has('light'), true)
   assert.equal(classes.has('dynamicColors'), true)
+  assert.equal(classes.has('mainRed'), false)
+  assert.equal(classes.has('secBlue'), false)
   assert.equal(properties.get('--bg-color'), palette().neutral1[50])
   dark = true
   applyThemeToDocument('dynamic', 'Red', 'Blue', null)
@@ -90,6 +92,15 @@ test('switching back from dynamic colors or a custom-theme preview restores the 
   assert.equal(classes.has('light'), true)
   applyThemeToDocument('dynamic', 'Red', 'Blue', null)
   assert.equal(properties.get('--primary-color'), palette().accent1[200])
+  androidDynamicColors.value = { supported: false }
+  for (const isDark of [false, true]) {
+    dark = isDark
+    applyThemeToDocument('dynamic', 'Red', 'Blue', null)
+    assert.equal(classes.has(isDark ? 'dark' : 'light'), true)
+    assert.equal(classes.has(isDark ? 'light' : 'dark'), false)
+    assert.equal(properties.has('--bg-color'), false)
+    assert.equal(properties.has('--accent-color-rgb'), false)
+  }
 })
 
 function contrast(first, second) {

@@ -312,10 +312,10 @@ it can be safely elided. This looks quite pleasant on this theme. */
   --logo-text: url('../../_icons/textBlackSmall.svg');
 }
 
-/* Custom and OpenTubeX themes tint the header logo instead of displaying the fixed-color
+/* Custom, OpenTubeX, and dynamic themes tint the header logo instead of displaying the fixed-color
    theme assets. Keeping the assets as masks preserves their sharp edges. */
-:is(.custom, .openTubeXLight, .openTubeXDark) .topNav .logoIcon,
-:is(.custom, .openTubeXLight, .openTubeXDark) .topNav .logoText {
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .topNav .logoIcon,
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .topNav .logoText {
   /* The component's fixed SVG has intentionally high scoped specificity. */
   /* stylelint-disable-next-line declaration-no-important */
   background-image: none !important;
@@ -325,23 +325,23 @@ it can be safely elided. This looks quite pleasant on this theme. */
   mask-position: center;
 }
 
-:is(.custom, .openTubeXLight, .openTubeXDark) .topNav .logoIcon {
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .topNav .logoIcon {
   background-color: var(--logo-primary-color);
   mask-image: var(--logo-icon);
   mask-size: 25px;
 }
 
-:is(.custom, .openTubeXLight, .openTubeXDark) .topNav .logoText {
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .topNav .logoText {
   background-color: var(--logo-secondary-color);
   mask-image: var(--logo-text);
   mask-size: 100px;
 }
 
-:is(.custom, .openTubeXLight, .openTubeXDark) .logo:hover :is(.logoIcon, .logoText) {
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .logo:hover :is(.logoIcon, .logoText) {
   background-color: var(--logo-tertiary-color);
 }
 
-:is(.custom, .openTubeXLight, .openTubeXDark) .logo:active :is(.logoIcon, .logoText) {
+:is(.custom, .openTubeXLight, .openTubeXDark, .dynamicColors) .logo:active :is(.logoIcon, .logoText) {
   background-color: var(--logo-pressed-color);
 }
 
@@ -3105,6 +3105,10 @@ body .os-scrollbar {
 /* Android system tones supply the palette; these roles keep controls visible
    against both their fill and the surrounding card. */
 .dynamicColors {
+  .topNavBarColor .logo :is(.logoIcon, .logoText) {
+    background-color: var(--text-with-main-color);
+  }
+
   --input-border-color: var(--border-color);
   --slider-track-color: var(--secondary-text-color);
   --toggle-track-color: var(--secondary-text-color);

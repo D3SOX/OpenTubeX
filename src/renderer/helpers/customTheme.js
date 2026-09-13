@@ -22,7 +22,7 @@ export function applyThemeToDocument(baseTheme, mainColor, secColor, customTheme
   const themeClasses = [themeClass]
   if (dynamic) themeClasses.push('dynamicColors')
   // Fixed palettes must not inherit selectable accent or destructive overrides.
-  if (!PALETTE_BASE_THEMES.includes(themeClass)) {
+  if ((!dynamic || !androidDynamicColors.value.supported) && !PALETTE_BASE_THEMES.includes(themeClass)) {
     themeClasses.push(`main${mainColor || 'Red'}`, `sec${secColor || 'Blue'}`)
   }
   document.body.classList.remove(...appliedBodyThemeClasses)
