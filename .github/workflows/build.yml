@@ -58,6 +58,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: build-${{ github.event_name == 'push' && github.ref == 'refs/heads/development' && 'development' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/development' }}
+
 jobs:
   build:
     name: Build
