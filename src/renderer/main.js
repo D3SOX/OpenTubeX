@@ -11,7 +11,7 @@ import { showExternalPlayerUnsupportedActionToast, showToast } from './helpers/u
 import { installViewTransitions } from './helpers/viewTransitions'
 import { initializeAppScrollbars, overlayScrollbarsDirective } from './helpers/overlayScrollbars'
 import { releaseAutomaticDownloadSchedule } from './helpers/automaticDownloads'
-import { androidDynamicColors, getAndroidDynamicColors } from './helpers/dynamicColors'
+import { initializeAndroidDynamicColors } from './helpers/dynamicColors'
 // import the styles
 import 'overlayscrollbars/styles/overlayscrollbars.css'
 // Only the positioning and stacking rules are used, FtToast supplies the design
@@ -48,7 +48,7 @@ const tabNavigation = initializeTabNavigationService(router, store)
 
 // Resolve native colors before App applies its first theme and system-bar style.
 const dynamicColorsReady = process.env.IS_CAPACITOR
-  ? getAndroidDynamicColors().then(colors => { androidDynamicColors.value = colors }).catch(error => {
+  ? initializeAndroidDynamicColors().catch(error => {
       console.error('Failed to load initial Android dynamic colors:', error)
     })
   : Promise.resolve()

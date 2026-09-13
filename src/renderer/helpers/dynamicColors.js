@@ -14,6 +14,19 @@ export function onAndroidDynamicColorsChanged(listener) {
 
 export const androidDynamicColors = ref({ supported: false })
 
+export async function initializeAndroidDynamicColors(request = getAndroidDynamicColors()) {
+  let timeout
+  try {
+    // Theme availability must not prevent the application from mounting.
+    androidDynamicColors.value = await Promise.race([
+      request,
+      new Promise(resolve => { timeout = setTimeout(() => resolve({ supported: false }), 1500) }),
+    ])
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 /** Map Android's tonal palette to the existing theme roles. */
 export function dynamicThemeColors(palette, dark) {
   const tone = (family, light, night) => palette[family]?.[dark ? night : light]

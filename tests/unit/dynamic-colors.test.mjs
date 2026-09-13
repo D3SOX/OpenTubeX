@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { dynamicThemeColors, applyDynamicColors } from '../../src/renderer/helpers/dynamicColors.js'
+import { dynamicThemeColors, applyDynamicColors, initializeAndroidDynamicColors, androidDynamicColors } from '../../src/renderer/helpers/dynamicColors.js'
 import { hasFixedThemeColors, resolveBaseTheme, resolveSystemTheme } from '../../src/appearanceSettings.js'
 
 function palette() {
@@ -98,6 +98,8 @@ test('switching back from dynamic colors or a custom-theme preview restores the 
     applyThemeToDocument('dynamic', 'Red', 'Blue', null)
     assert.equal(classes.has(isDark ? 'dark' : 'light'), true)
     assert.equal(classes.has(isDark ? 'light' : 'dark'), false)
+    assert.equal(classes.has('mainRed'), true)
+    assert.equal(classes.has('secBlue'), true)
     assert.equal(properties.has('--bg-color'), false)
     assert.equal(properties.has('--accent-color-rgb'), false)
   }
@@ -146,3 +148,28 @@ for (const dark of [false, true]) {
     assert.ok(contrast('#eeeeee', colors.primaryInput) >= 4.5, 'Colored header search text')
   })
 }
+
+
+test('startup continues when the native palette request stalls and ignores its late result', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  t.after(() => { androidDynamicColors.value = { supported: false } })
+  let resolveRequest
+  const request = new Promise(resolve => { resolveRequest = resolve })
+  let ready = false
+  const initialization = initializeAndroidDynamicColors(request).then(() => { ready = true })
+  t.mock.timers.tick(1500)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(ready, true, 'A stalled native bridge must not block mounting')
+  await initialization
+  assert.equal(androidDynamicColors.value.supported, false)
+  resolveRequest({ supported: true, palette: palette() })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(androidDynamicColors.value.supported, false, 'Late startup results must not replace live state')
+})
+
+test('startup uses a timely palette and propagates native errors to the fallback handler', async (t) => {
+  t.after(() => { androidDynamicColors.value = { supported: false } })
+  await initializeAndroidDynamicColors(Promise.resolve({ supported: true, palette: palette() }))
+  assert.equal(androidDynamicColors.value.supported, true)
+  await assert.rejects(initializeAndroidDynamicColors(Promise.reject(new Error('bridge failed'))), /bridge failed/)
+})
