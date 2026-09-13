@@ -1348,6 +1348,23 @@ test.describe('scroll mini player', () => {
     await expectBottomNavigationClearance()
   })
 
+  test.describe('bottom tabs at fractional scale', () => {
+    test.use({ seed: { settings: { ...PLAYER_SEED, tabBarPosition: 'bottom', uiScale: 125 } } })
+    test('keeps the mini player above mobile navigation and bottom tabs', async ({ app, page }) => {
+      await openDemoVideo({ app, page })
+      const player = page.locator('.ftVideoPlayer')
+      await scrollBelowPlayer(player)
+      await expect(player).toHaveClass(/scrollMiniPlayer/)
+      await setWindowSize(app, page, { width: 480, height: 800 })
+      await page.locator('.sideNav a').first().evaluate(link => link.focus({ preventScroll: true }))
+      await expect.poll(() => player.evaluate(element => {
+        const playerBounds = element.getBoundingClientRect()
+        const navigationBounds = document.querySelector('.sideNav').getBoundingClientRect()
+        return navigationBounds.top - playerBounds.bottom
+      })).toBeGreaterThanOrEqual(15)
+    })
+  })
+
   test('animates into and out of the scroll mini player', async ({ app, page, attachScreenshot }) => {
     const video = await openDemoVideo({ app, page })
     await video.evaluate(element => element.pause())

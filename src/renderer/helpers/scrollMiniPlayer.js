@@ -258,7 +258,8 @@ export function getViewportInsets() {
     const isBottomBar = rect.width > rect.height &&
       rect.top >= window.innerHeight - rect.bottom
     if (isBottomBar) {
-      bottomInset = Math.max(bottomInset, rect.height + MARGIN)
+      // In narrow Electron windows this bar sits above any bottom tabs.
+      bottomInset += rect.height
     }
   }
 

@@ -151,6 +151,17 @@ test('a phone bottom navigation pads the bottom inset', () => {
   assert.equal(insets.bottom, 84 + MARGIN)
 })
 
+test('bottom tabs stay below the phone navigation throughout its hide animation', () => {
+  for (const translation of [0, 12, 30.4, 60.8]) {
+    stubViewport({
+      sideNavRect: { top: 705.2 + translation, bottom: 766 + translation, width: 375, height: 60.8 },
+      tabBarRect: { top: 766, bottom: 800 },
+      clientWidth: 375
+    })
+    assert.equal(getViewportInsets().bottom, 34 + 60.8 + MARGIN)
+  }
+})
+
 test('a desktop side navigation does not pad the bottom inset', () => {
   stubViewport({
     sideNavRect: { top: 0, bottom: 800, width: 88, height: 800 },
