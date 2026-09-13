@@ -149,7 +149,6 @@ for (const dark of [false, true]) {
   })
 }
 
-
 test('startup continues when the native palette request stalls and ignores its late result', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   t.after(() => { androidDynamicColors.value = { supported: false } })
