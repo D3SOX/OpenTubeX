@@ -8,6 +8,8 @@ const source = (await readFile(new URL('../../src/renderer/helpers/player/miniCo
 
 for (const failure of ['image loading', 'canvas rendering']) {
   test(`mini controls retry unchanged content after failed ${failure}`, () => {
+    const timers = new Map()
+    let timerId = 0
     const images = []
     const errors = []
     const changes = []
@@ -18,6 +20,8 @@ for (const failure of ['image loading', 'canvas rendering']) {
       cloneNode: () => ({ style: { setProperty() {} }, querySelector: () => null })
     }
     const context = vm.createContext({
+      setTimeout(callback) { timers.set(++timerId, callback); return timerId },
+      clearTimeout(id) { timers.delete(id) },
       window: { devicePixelRatio: 2 },
       getComputedStyle: () => ({
         visibility: 'visible', display: 'block', opacity: '1', content: 'none',
@@ -36,16 +40,43 @@ for (const failure of ['image loading', 'canvas rendering']) {
     snapshot.update(root, 240, 135, false)
     if (failure === 'image loading') images[0].onerror()
     else images[0].onload()
-    assert.equal(errors.length, 1)
+    assert.equal(errors.length, 0, 'A transient snapshot failure must not report a playback error')
     assert.deepEqual(changes, [])
 
     failCanvas = false
-    snapshot.update(root, 240, 135, false)
+    for (let frame = 0; frame < 60; frame++) snapshot.update(root, 240, 135, true)
+    assert.equal(images.length, 1, 'Scroll frames must not retry a failed snapshot')
+    assert.equal(timers.size, 1, 'An idle failure schedules its own retry')
+    const retry = [...timers.values()][0]
+    timers.clear()
+    retry()
     assert.equal(images.length, 2, 'The unchanged controls must retry after the failed attempt')
     images[1].onload()
     assert.deepEqual(changes, ['data:image/png;base64,controls'])
     snapshot.update(root, 240, 135, false)
     assert.equal(images.length, 2, 'A successful retry is cached normally')
+    snapshot.invalidate()
+    // Change dimensions to require a fresh image, then fail persistently.
+    snapshot.update(root, 241, 135, false)
+    images.at(-1).onerror()
+    const retryAgain = [...timers.values()][0]
+    timers.clear()
+    retryAgain()
+    images.at(-1).onerror()
+    const attempts = images.length
+    for (let frame = 0; frame < 60; frame++) snapshot.update(root, 241, 135, false)
+    assert.equal(images.length, attempts, 'Persistent failure exhausts the automatic retry')
+    assert.equal(timers.size, 0)
+    assert.equal(errors.length, 1, 'Report persistent failure once')
+    snapshot.update(null, 0, 0, false)
+    snapshot.update(root, 240, 135, false)
+    images.at(-1).onerror()
+    assert.equal(timers.size, 1)
+    snapshot.update(null, 0, 0, false)
+    assert.equal(timers.size, 0, 'Leaving mini mode cancels the retry')
+    snapshot.update(root, 240, 135, false)
+    images.at(-1).onerror()
     snapshot.destroy()
+    assert.equal(timers.size, 0, 'Destruction cancels the retry')
   })
 }

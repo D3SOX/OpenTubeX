@@ -10,12 +10,34 @@ export function createMiniControlsSnapshot(onChange, onError) {
   let image = null
   let pending = false
 
-  return {
+  let retryTimer = null
+  let failures = 0
+  let latest = null
+
+  function failed(error) {
+    pending = false
+    previousSvg = ''
+    dirty = true
+    failures++
+    if (failures !== 1) { onError(error); return }
+    // One delayed retry recovers transient failures without doing raster work
+    // on scroll frames or repeatedly reporting an unrecoverable failure.
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      if (!destroyed && latest) snapshot.update(...latest, true)
+    }, 250)
+  }
+
+  const snapshot = {
     invalidate(duringScroll = false) { dirty = true; refreshFrozen ||= duringScroll },
-    destroy() { destroyed = true; sequence++; previousRoot = null },
-    update(root, width, height, frozen) {
+    destroy() { destroyed = true; sequence++; previousRoot = null; latest = null; clearTimeout(retryTimer) },
+    update(root, width, height, frozen, retry = false) {
       if (destroyed) return
       if (!root || width <= 0 || height <= 0) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+        failures = 0
+        latest = null
         if (previousRoot) {
           sequence++
           previousRoot = null
@@ -26,7 +48,9 @@ export function createMiniControlsSnapshot(onChange, onError) {
         }
         return
       }
-      if (frozen && !refreshFrozen && (image || pending)) return
+      latest = [root, width, height, frozen]
+      if (!retry && (retryTimer !== null || failures >= 2)) return
+      if (!retry && frozen && !refreshFrozen && (image || pending)) return
       const scale = Math.min(window.devicePixelRatio || 1, 3, 1024 / width, 1024 / height)
       const size = `${width},${height},${scale}`
       if (!dirty && root === previousRoot && size === previousSize) return
@@ -67,24 +91,21 @@ export function createMiniControlsSnapshot(onChange, onError) {
           canvas.height = pixelHeight
           canvas.getContext('2d').drawImage(source, 0, 0)
           const next = canvas.toDataURL('image/png')
+          failures = 0
           if (next !== image) { image = next; onChange(image) }
         } catch (error) {
-          previousSvg = ''
-          dirty = true
-          onError(error)
+          failed(error)
         }
       }
       source.onerror = () => {
         if (current !== sequence) return
-        pending = false
-        previousSvg = ''
-        dirty = true
-        onError(new Error('Could not render mini-player controls'))
+        failed(new Error('Could not render mini-player controls'))
       }
       // Data SVGs keep foreignObject canvas reads origin-clean in Chromium.
       source.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
     }
   }
+  return snapshot
 }
 
 function copyStyle(source, target, pseudo) {
