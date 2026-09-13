@@ -438,7 +438,9 @@ export async function goTo(page, route) {
 
   // Mobile navigation slides offscreen while scrolling down. Scrolling to the
   // top reveals it before either a route link or the More button is clicked.
-  if (await page.locator('.sideNav.scrollHidden').count()) {
+  if (await page.locator('.sideNav').evaluate(nav =>
+    getComputedStyle(nav).getPropertyValue('--hide-on-scroll').trim() === '1'
+  )) {
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect(page.locator('.sideNav')).not.toHaveClass(/scrollHidden/)
   }
