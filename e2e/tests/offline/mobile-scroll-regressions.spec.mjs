@@ -41,14 +41,16 @@ for (const [uiScale, reducedMotion] of [[100, 'no-preference'], [125, 'no-prefer
         const nav = page.locator('.sideNav')
         if (hidden) {
           await expect(nav).toHaveClass(/scrollHidden/)
-          const geometry = await nav.evaluate(element => {
-            const rect = element.getBoundingClientRect()
-            return { top: rect.top, height: rect.height }
-          })
-          expect(Math.abs(geometry.top - visibleTop - geometry.height)).toBeLessThan(1)
+          await expect.poll(async () => {
+            const geometry = await nav.evaluate(element => {
+              const rect = element.getBoundingClientRect()
+              return { top: rect.top, height: rect.height }
+            })
+            return Math.abs(geometry.top - visibleTop - geometry.height)
+          }).toBeLessThan(1)
         } else {
           await expect(nav).not.toHaveClass(/scrollHidden/)
-          expect(Math.abs(await nav.evaluate(element => element.getBoundingClientRect().top) - visibleTop)).toBeLessThan(1)
+          await expect.poll(async () => Math.abs(await nav.evaluate(element => element.getBoundingClientRect().top) - visibleTop)).toBeLessThan(1)
         }
       }
       await expect(page.locator('.sideNav')).not.toHaveClass(/scrollHidden/)
