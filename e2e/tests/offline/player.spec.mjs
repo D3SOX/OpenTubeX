@@ -1024,7 +1024,8 @@ test('scopes the mobile fullscreen swipe movement to the video in tablet layout'
     await store.dispatch('updateEnableMobileFullscreenSwipe', false)
   })
   await expect(player).not.toHaveClass(/mobileFullscreenSwipeEnabled/)
-  await expect(player).toHaveCSS('touch-action', 'auto')
+  // Downward mini-player swipes remain enabled independently of fullscreen.
+  await expect(player).toHaveCSS('touch-action', 'pan-x pan-down')
 
   await player.evaluate(element => {
     element.classList.add('mobileFullscreenSwiping')

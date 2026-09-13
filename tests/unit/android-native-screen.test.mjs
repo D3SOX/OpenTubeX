@@ -491,3 +491,15 @@ for (const scale of [1, 2]) {
     f.screen.destroy()
   })
 }
+
+test('reset clears cached mini controls before the native screen is reused', async () => {
+  const f = await fixture({ fullscreen: false })
+  f.snapshots.length = 0
+  f.screen.reset()
+  assert.equal(f.snapshots.length, 1)
+  assert.equal(f.snapshots[0][0], null)
+  await f.screen.attach()
+  await f.flush()
+  assert.ok(f.snapshots.length > 1, 'The snapshot helper remains usable after reset')
+  f.screen.destroy()
+})

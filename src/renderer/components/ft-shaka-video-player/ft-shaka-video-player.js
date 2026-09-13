@@ -3681,8 +3681,9 @@ export default defineComponent({
     const videoZoomTouchPointers = new Map()
     let videoZoomPinchStart = null
 
-    function handleVideoZoomPointerEnter() {
+    function handleVideoZoomPointerEnter(event) {
       videoZoomPointerInside = true
+      videoZoomPanReady.value = videoZoomPannable.value && event.shiftKey
     }
 
     function handleVideoZoomPointerLeave() {
