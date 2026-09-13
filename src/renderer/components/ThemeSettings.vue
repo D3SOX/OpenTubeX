@@ -458,15 +458,18 @@ const capacitorLayoutModeNames = computed(() => [
 ])
 
 const builtInBaseThemeNames = useBaseThemeNames()
+const dynamicThemeIndex = BUILTIN_BASE_THEME_VALUES.indexOf('openTubeXDark') + 1
 const customThemes = computed(() => store.getters.getCustomThemes)
 const baseThemeValues = computed(() => [
-  ...BUILTIN_BASE_THEME_VALUES,
+  ...BUILTIN_BASE_THEME_VALUES.slice(0, dynamicThemeIndex),
   ...(androidDynamicColors.value.supported ? ['dynamic'] : []),
+  ...BUILTIN_BASE_THEME_VALUES.slice(dynamicThemeIndex),
   ...customThemes.value.map(({ id }) => customThemeValue(id))
 ])
 const baseThemeNames = computed(() => [
-  ...builtInBaseThemeNames.value,
+  ...builtInBaseThemeNames.value.slice(0, dynamicThemeIndex),
   ...(androidDynamicColors.value.supported ? [t('Settings.Theme Settings.Base Theme.Dynamic colors')] : []),
+  ...builtInBaseThemeNames.value.slice(dynamicThemeIndex),
   ...customThemes.value.map(({ name }) => name)
 ])
 function systemThemeOptions(classification) {
