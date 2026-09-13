@@ -59,12 +59,23 @@ test('parses player interstitials and their text and button without runtime gene
   assert.equal(node.content.primary_button.title, 'Continue')
 })
 
-test('parses comment filter context text without runtime parser generation', (t) => {
+test('retains comment filter context in a reloaded comment response without runtime generation', (t) => {
   const warn = t.mock.method(console, 'warn', () => {})
-  const node = Parser.parseItem({
-    commentFilterContextViewModel: { text: { content: 'Top comments' } }
+  const response = Parser.parseResponse({
+    onResponseReceivedEndpoints: [{
+      reloadContinuationItemsCommand: {
+        targetId: 'comments-section',
+        continuationItems: [{
+          commentFilterContextViewModel: { text: { content: 'Top comments' } }
+        }]
+      }
+    }]
   })
   assert.equal(warn.mock.callCount(), 0)
+  const command = response.on_response_received_endpoints[0]
+  assert.equal(command.target_id, 'comments-section')
+  assert.equal(command.contents.length, 1)
+  const node = command.contents[0]
   assert.ok(node instanceof YTNodes.CommentFilterContextView)
   assert.equal(node.text.toString(), 'Top comments')
 })
