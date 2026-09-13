@@ -137,7 +137,7 @@ function fixture (overrides = {}, { encrypted = false, respond, connectionState 
       }
       if (action === 'updateChannelPlaybackSpeeds') settings.channelPlaybackSpeeds = value
       if (action === 'replaceSyncServerToken') settings.syncServerToken = value
-      if (action === 'initializeSyncServer') return store.exports.actions.initializeSyncServer(context)
+      if (action === 'initializeSyncServer') return store.exports.actions.initializeSyncServer(context, value)
       if (action === 'syncWithSyncServer') return store.exports.actions.syncWithSyncServer(context, value)
     },
   }
@@ -502,6 +502,7 @@ test('offline startup registers recovery and reconnect initializes sync', async 
   assert.equal(f.requests.length, 0)
   f.network.state = 'restored'
   f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'restored' }))
+  await Promise.resolve()
   assert.ok(f.dispatched.some(([action]) => action === 'initializeSyncServer'))
   for (let i = 0; i < 100 && !f.requests.length; i++) await Promise.resolve()
   assert.ok(f.requests.length > 0)
@@ -521,7 +522,68 @@ for (const settings of [{ syncServerSyncSubscriptions: false }, { syncServerAuto
     await f.actions.initializeSyncServer(f.context)
     f.network.state = 'restored'
     f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'restored' }))
+    await Promise.resolve()
     assert.equal(f.dispatched.some(([action]) => action === 'initializeSyncServer'), false)
     assert.equal(f.requests.length, 0)
   })
 }
+
+test('startup without an account still registers reconnect handling for a later connection', async () => {
+  const f = fixture({ syncServerToken: '' }, { encrypted: true, connectionState: 'offline', browser: true })
+  await f.actions.initializeSyncServer(f.context)
+  f.settings.syncServerToken = 'connected-token'
+  f.network.state = 'restored'
+  f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'restored' }))
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  assert.ok(f.dispatched.some(([action]) => action === 'initializeSyncServer'))
+})
+
+test('reconnect sync includes offline changes even when the last sync was recent', async () => {
+  const f = fixture({ syncServerLastSyncAt: Date.now() }, { encrypted: true, connectionState: 'offline', browser: true })
+  await f.actions.initializeSyncServer(f.context)
+  let options
+  const dispatch = f.context.dispatch
+  f.context.dispatch = async (action, value) => {
+    if (action === 'syncWithSyncServer') { options = value; return null }
+    return dispatch(action, value)
+  }
+  f.network.state = 'restored'
+  f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'restored' }))
+  for (let i = 0; i < 100 && !options; i++) await Promise.resolve()
+  assert.equal(options?.skipIfRecent, false)
+})
+
+test('disconnect cancels an active sync and reconnect waits for it to settle', async () => {
+  let releaseRequest
+  let signal
+  let started
+  const requestStarted = new Promise(resolve => { started = resolve })
+  const f = fixture({}, { encrypted: true, connectionState: 'offline', browser: true,
+    respond: (url, options) => {
+      if (signal) return
+      signal = options.signal
+      return new Promise((resolve, reject) => {
+        releaseRequest = () => reject(new DOMException('Aborted', 'AbortError'))
+        started()
+      })
+    },
+  })
+  await f.actions.initializeSyncServer(f.context)
+  f.network.state = 'online'
+  const syncing = f.actions.syncWithSyncServer(f.context)
+  await requestStarted
+  try {
+    f.network.state = 'offline'
+    f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'offline' }))
+    assert.equal(signal.aborted, true)
+    f.network.state = 'restored'
+    f.connectionEvents.dispatchEvent(new CustomEvent('change', { detail: 'restored' }))
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    assert.equal(f.requests.length, 1, 'reconnect must wait for the cancelled sync to settle')
+  } finally {
+    releaseRequest()
+    await syncing
+  }
+  for (let i = 0; i < 100 && f.requests.length === 1; i++) await Promise.resolve()
+  assert.ok(f.requests.length > 1, 'a fresh sync starts after cancellation settles')
+})

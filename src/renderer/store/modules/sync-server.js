@@ -848,18 +848,22 @@ const actions = {
     return activeSyncPromise
   },
 
-  async initializeSyncServer({ commit, dispatch, rootState }) {
-    if (!rootState.settings.syncServerEnabled || !rootState.settings.syncServerToken) return
-
+  async initializeSyncServer({ commit, dispatch, rootState }, { skipIfRecent = true } = {}) {
     if (!lifecycleSyncStarted && typeof window !== 'undefined') {
       lifecycleSyncStarted = true
-      connectionEvents.addEventListener('change', ({ detail }) => {
+      connectionEvents.addEventListener('change', async ({ detail }) => {
         if (detail === 'offline') cancelActiveSyncClients()
-        else if (detail === 'restored' && rootState.settings.syncServerAutoSync &&
-            isSyncReasonEnabled(rootState.settings, 'automatic')) {
-          dispatch('initializeSyncServer').catch(error => {
+        else if (detail === 'restored') {
+          try {
+            // A reconnect must start a fresh sync after cancellation finishes.
+            await activeSyncPromise?.catch(() => {})
+            if (rootState.settings.syncServerAutoSync &&
+                isSyncReasonEnabled(rootState.settings, 'automatic')) {
+              await dispatch('initializeSyncServer', { skipIfRecent: false })
+            }
+          } catch (error) {
             console.error('Sync server reconnect sync failed', error)
-          })
+          }
         }
       })
       document.addEventListener('visibilitychange', () => {
@@ -868,6 +872,8 @@ const actions = {
         }
       })
     }
+
+    if (!rootState.settings.syncServerEnabled || !rootState.settings.syncServerToken) return
 
     commit(
       'setSyncServerOtherDeviceSessions',
@@ -909,7 +915,7 @@ const actions = {
 
     await dispatch('startSyncServerAutoSync')
     if (rootState.settings.syncServerAutoSync) {
-      await dispatch('syncWithSyncServer', { skipIfRecent: true })
+      await dispatch('syncWithSyncServer', { skipIfRecent })
     }
   },
 
