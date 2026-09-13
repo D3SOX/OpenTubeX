@@ -554,7 +554,6 @@ import {
   acknowledgeAndroidSubscriptionRefreshResult,
   addAndroidSubscriptionRefreshCancelledListener,
   configureAndroidSubscriptionRefresh,
-  finishAndroidSubscriptionRefresh,
   getNextAndroidSubscriptionRefreshResult,
   requestAndroidSubscriptionRefreshNotificationPermission,
   startAndroidSubscriptionRefresh,
@@ -2396,9 +2395,6 @@ function handleSubscriptionRefreshProgress(event) {
  */
 function handleSubscriptionRefreshFinished(event) {
   subscriptionRefreshStartGuard.finish()
-  if (isCapacitor) {
-    finishAndroidSubscriptionRefresh(event.detail.refreshId)
-  }
   if (!process.env.IS_ELECTRON) {
     try {
       localStorage.removeItem(SUBSCRIPTION_AUTO_REFRESH_PROGRESS_STORAGE_KEY)
@@ -4370,6 +4366,8 @@ async function enableCapacitorIntegrations() {
   const removeMediaActions = await addAndroidMediaSessionActionListener(({ action, ...details }) => {
     tabMediaCoordinator.dispatchAction(action, details)
   })
+  const handleTaskRemoved = () => tabMediaCoordinator.pauseAll()
+  window.addEventListener('opentubex:android-task-removed', handleTaskRemoved)
   let receivedAppState = false
   const appStateHandle = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
     receivedAppState = true
@@ -4396,6 +4394,7 @@ async function enableCapacitorIntegrations() {
     backButtonHandle?.remove()
     urlHandle.remove()
     appStateHandle.remove()
+    window.removeEventListener('opentubex:android-task-removed', handleTaskRemoved)
     playbackScreenWake?.setAppActive(false)
     setAndroidAppVisible(null)
     removeReminderActions()
