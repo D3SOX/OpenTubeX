@@ -1024,7 +1024,8 @@ test('scopes the mobile fullscreen swipe movement to the video in tablet layout'
     await store.dispatch('updateEnableMobileFullscreenSwipe', false)
   })
   await expect(player).not.toHaveClass(/mobileFullscreenSwipeEnabled/)
-  await expect(player).toHaveCSS('touch-action', 'auto')
+  // Downward mini-player swipes remain enabled independently of fullscreen.
+  await expect(player).toHaveCSS('touch-action', 'pan-x pan-down')
 
   await player.evaluate(element => {
     element.classList.add('mobileFullscreenSwiping')
@@ -1264,6 +1265,26 @@ test('animates the fullscreen title when the Android status-bar inset changes', 
 })
 
 test.describe('scroll mini player', () => {
+  test('a stationary touch reveals hidden mini-player controls without pausing', async ({ app, page }) => {
+    const video = await openDemoVideo({ app, page })
+    const player = page.locator('.ftVideoPlayer')
+    await video.evaluate(element => element.play())
+    await scrollBelowPlayer(player)
+    await expect(player).toHaveClass(/scrollMiniPlayer/)
+    await page.mouse.move(0, 0)
+    const button = player.locator('.scrollMiniPlayPause')
+    await expect(button).toHaveClass(/isHidden/, { timeout: 6000 })
+    await expect(button).toHaveCSS('opacity', '0')
+    const bounds = await player.boundingBox()
+    const session = await page.context().newCDPSession(page)
+    const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] })
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await session.detach()
+    await expect(button).not.toHaveClass(/isHidden/)
+    await expect.poll(() => video.evaluate(element => element.paused)).toBe(false)
+  })
+
   test('keeps a phone mini player above the bottom navigation', async ({ app, page }) => {
     const video = await openDemoVideo({ app, page })
     await video.evaluate(element => element.pause())
@@ -1325,6 +1346,23 @@ test.describe('scroll mini player', () => {
     }, { dragX })
 
     await expectBottomNavigationClearance()
+  })
+
+  test.describe('bottom tabs at fractional scale', () => {
+    test.use({ seed: { settings: { ...PLAYER_SEED, tabBarPosition: 'bottom', uiScale: 125 } } })
+    test('keeps the mini player above mobile navigation and bottom tabs', async ({ app, page }) => {
+      await openDemoVideo({ app, page })
+      const player = page.locator('.ftVideoPlayer')
+      await scrollBelowPlayer(player)
+      await expect(player).toHaveClass(/scrollMiniPlayer/)
+      await setWindowSize(app, page, { width: 480, height: 800 })
+      await page.locator('.sideNav a').first().evaluate(link => link.focus({ preventScroll: true }))
+      await expect.poll(() => player.evaluate(element => {
+        const playerBounds = element.getBoundingClientRect()
+        const navigationBounds = document.querySelector('.sideNav').getBoundingClientRect()
+        return navigationBounds.top - playerBounds.bottom
+      })).toBeGreaterThanOrEqual(15)
+    })
   })
 
   test('animates into and out of the scroll mini player', async ({ app, page, attachScreenshot }) => {

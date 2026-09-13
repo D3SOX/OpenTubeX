@@ -3681,8 +3681,9 @@ export default defineComponent({
     const videoZoomTouchPointers = new Map()
     let videoZoomPinchStart = null
 
-    function handleVideoZoomPointerEnter() {
+    function handleVideoZoomPointerEnter(event) {
       videoZoomPointerInside = true
+      videoZoomPanReady.value = videoZoomPannable.value && event.shiftKey
     }
 
     function handleVideoZoomPointerLeave() {
@@ -6587,7 +6588,7 @@ export default defineComponent({
       scrollMiniScrollToTop,
       restoreInlinePlayer,
       scrollMiniTogglePlayPause,
-      restoreStashedScrollMiniPlayer,
+      revealScrollMiniPlayerControls,
       scrollMiniVolume,
       scrollMiniVolumeExpanded,
       scrollMiniVolumeIcon,
@@ -11688,7 +11689,7 @@ export default defineComponent({
       scrollMiniTogglePlayPause,
       scrollMiniScrollToTop,
       restoreInlinePlayer,
-      restoreStashedScrollMiniPlayer,
+      revealScrollMiniPlayerControls,
       updateScrollMiniVolume,
       handleScrollMiniVolumeMouseEnter,
       handleScrollMiniVolumeMouseLeave,

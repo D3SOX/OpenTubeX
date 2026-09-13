@@ -300,7 +300,7 @@
     inset-block: auto 0;
     padding-block-end: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0));
     overflow-y: hidden;
-    transform: translateY(0);
+    transform: none;
     transition: transform 280ms cubic-bezier(0.2, 0, 0, 1);
   }
 
