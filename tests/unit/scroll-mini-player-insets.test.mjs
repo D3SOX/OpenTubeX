@@ -163,6 +163,20 @@ test('a desktop side navigation does not pad the bottom inset', () => {
   assert.equal(insets.bottom, MARGIN)
 })
 
+test('remembered mini player position stays fixed while bottom navigation slides away', () => {
+  for (const height of [60, 60.8, 84]) {
+    const sideNavRect = { top: 800 - height, bottom: 800, width: 375, height }
+    stubViewport({ sideNavRect, clientWidth: 375 })
+    const rect = { left: 19, top: 400, width: 320, height: 180, dock: 'right' }
+    const saved = { ...rect, ...getScrollMiniVerticalAnchor(rect) }
+    for (const translation of [12, height / 2, height]) {
+      sideNavRect.top = 800 - height + translation
+      sideNavRect.bottom = 800 + translation
+      assert.equal(reanchorScrollMiniPlayerRect(saved).top, rect.top)
+    }
+  }
+})
+
 test('the left dock edge follows the tab rail width', () => {
   stubViewport({ verticalTabBarRect: { left: 0, right: 400 }, clientWidth: 1585 })
   const insets = getViewportInsets()
