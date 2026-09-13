@@ -232,14 +232,21 @@
 /* The player owns vertical touch movement on mobile so a short drag can enter
    or leave fullscreen without fighting page scrolling. The layout class lives
    on this component while the player is inside a child component. */
-.app.capacitorTabs :deep(.ftVideoPlayer:is(.mobileFullscreenSwipeEnabled, .mobileSideSwipesEnabled):not(.scrollMiniPlayer)),
-.app.capacitorTabs :deep(.ftVideoPlayer:is(.mobileFullscreenSwipeEnabled, .mobileSideSwipesEnabled):not(.scrollMiniPlayer) .ft-quick-playback-rate-bar) {
+.app.capacitorTabs :deep(.ftVideoPlayer:not(.scrollMiniPlayer)),
+.app.capacitorTabs :deep(.ftVideoPlayer:not(.scrollMiniPlayer) .ft-quick-playback-rate-bar) {
   touch-action: pan-x;
+}
+
+/* Downward drags still dock the player when fullscreen swipes are disabled.
+   Leave upward gestures to page scrolling unless another player gesture owns them. */
+.app.capacitorTabs :deep(.ftVideoPlayer:not(.scrollMiniPlayer, .mobileFullscreenSwipeEnabled, .mobileSideSwipesEnabled, .videoZoomTouchEnabled)),
+.app.capacitorTabs :deep(.ftVideoPlayer:not(.scrollMiniPlayer, .mobileFullscreenSwipeEnabled, .mobileSideSwipesEnabled, .videoZoomTouchEnabled) .ft-quick-playback-rate-bar) {
+  touch-action: pan-x pan-down;
 }
 
 /* Chromium may claim the first finger as a pan before the second finger lands,
    cancelling the pointer stream before the player can recognize a pinch. */
-.app.capacitorTabs :deep(.ftVideoPlayer.videoZoomTouchEnabled:not(.scrollMiniPlayer)) {
+.app.capacitorTabs :deep(.ftVideoPlayer.videoZoomTouchEnabled) {
   touch-action: none;
 }
 
@@ -811,4 +818,13 @@
     right: var(--vertical-tab-bar-width, 220px);
   }
   /* stylelint-enable liberty/use-logical-spec */
+}
+
+.app.capacitorTabs :deep(.ftVideoPlayer[data-inline-mini-drag]) {
+  z-index: 100;
+}
+
+.app.capacitorTabs :deep(.ftVideoPlayer[data-inline-mini-drag] .shaka-controls-container) {
+  opacity: 0;
+  pointer-events: none;
 }

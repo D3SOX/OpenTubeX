@@ -512,8 +512,8 @@ final class NativePlaybackScreen extends FrameLayout implements TextureView.Surf
         videoFrame.setScaleY((float) (fittedHeight * scale / textureHeight));
     }
 
-    void animateVideo(double[] from, double[] to, long duration, float radius, Runnable finished) {
-        followsPageScroll = false;
+    void animateVideo(double[] from, double[] to, long duration, float radius, boolean targetPageScroll, Runnable finished) {
+        followsPageScroll = targetPageScroll;
         gestureActive = false;
         double scale = getWidth() / to[4];
         // A reversal starts where the native frame is actually being drawn,
@@ -534,7 +534,9 @@ final class NativePlaybackScreen extends FrameLayout implements TextureView.Surf
         animation.addUpdateListener(value -> {
             float progress = (float) value.getAnimatedValue();
             double x = origin[0] + (to[0] - origin[0]) * progress;
-            double y = origin[1] + (to[1] - origin[1]) * progress;
+            // The inline destination keeps moving while a smooth scroll settles.
+            double targetY = to[1] + (targetPageScroll ? pageScrollDelta(to[4]) : 0);
+            double y = origin[1] + (targetY - origin[1]) * progress;
             double width = origin[2] + (to[2] - origin[2]) * progress;
             double height = origin[3] + (to[3] - origin[3]) * progress;
             double frameScale = getWidth() / to[4];

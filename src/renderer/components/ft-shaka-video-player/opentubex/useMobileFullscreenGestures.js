@@ -16,6 +16,7 @@ export function useMobileFullscreenGestures({
   seekOnDoubleTap,
   getSwipeAction = () => 'disabled',
   adjustments,
+  miniPlayerDrag,
   setFullscreenMetadata,
   setShowUiOnPaused,
   showOverlayControls,
@@ -57,7 +58,7 @@ export function useMobileFullscreenGestures({
   }
 
   function isSwipeControlTarget(target) {
-    return target instanceof Element && target.closest('.shaka-controls-button-panel, .shaka-play-button') !== null
+    return target instanceof Element && target.closest('.shaka-controls-button-panel, .shaka-play-button, .scrollMiniPlayPause, .scrollMiniPointerLayer') !== null
   }
 
   function startMobileFullscreenGesture(event) {
@@ -69,8 +70,7 @@ export function useMobileFullscreenGestures({
       !isCapacitorMobilePlayer() ||
       event.pointerType !== 'touch' ||
       event.button !== 0 ||
-      !event.isPrimary ||
-      isScrollMiniPlayerActive()
+      !event.isPrimary
     ) {
       return
     }
@@ -90,7 +90,8 @@ export function useMobileFullscreenGestures({
       return
     }
 
-    const surfaceTap = isPlayerSurfaceTarget(event.target)
+    const surfaceTap = isPlayerSurfaceTarget(event.target) ||
+      (isScrollMiniPlayerActive() && event.target === getContainer())
     if (!surfaceTap) {
       clearTimeout(mobileSurfaceTapTimer)
       mobileSurfaceTapTimer = null
@@ -103,7 +104,8 @@ export function useMobileFullscreenGestures({
     const bounds = getContainer()?.getBoundingClientRect()
     const relativeX = bounds?.width > 0 ? (event.clientX - bounds.left) / bounds.width : 0.5
     const side = relativeX <= 0.35 ? 'left' : relativeX >= 0.65 ? 'right' : null
-    const action = side ? getSwipeAction(side) : 'disabled'
+    const restoring = isScrollMiniPlayerActive()
+    const action = side && !restoring ? getSwipeAction(side) : 'disabled'
     mobileFullscreenGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -111,6 +113,7 @@ export function useMobileFullscreenGestures({
       startTime: performance.now(),
       surfaceTap,
       fullscreen: isFullscreenActive(),
+      restoring,
       distance: 0,
       tapDirection: relativeX <= 0.35 ? -1 : relativeX >= 0.65 ? 1 : 0,
       controlsShownAtStart: getControls()?.getControlsContainer().hasAttribute('shown') === true,
@@ -139,6 +142,20 @@ export function useMobileFullscreenGestures({
       clearTimeout(mobileSurfaceTapTimer)
       mobileSurfaceTapTimer = null
       lastMobileSideTap = null
+    }
+    const dragDistance = deltaY * (mobileFullscreenGesture.restoring ? -1 : 1)
+    if (!mobileFullscreenGesture.fullscreen && mobileFullscreenGesture.action === 'disabled' &&
+      (mobileFullscreenGesture.minimizing || (dragDistance >= 8 && dragDistance > Math.abs(deltaX)))) {
+      if (!mobileFullscreenGesture.minimizing) {
+        if (!miniPlayerDrag?.begin(mobileFullscreenGesture.restoring)) return false
+        mobileFullscreenGesture.minimizing = true
+        getContainer()?.setPointerCapture(event.pointerId)
+      }
+      mobileFullscreenGesture.distance = Math.max(0, dragDistance)
+      miniPlayerDrag.move(deltaX, mobileFullscreenGesture.restoring ? Math.min(0, deltaY) : Math.max(0, deltaY))
+      event.preventDefault()
+      event.stopPropagation()
+      return true
     }
     if (mobileFullscreenGesture.action !== 'disabled') {
       if (!mobileFullscreenGesture.adjusting) {
@@ -223,6 +240,18 @@ export function useMobileFullscreenGestures({
 
     const gesture = mobileFullscreenGesture
     mobileFullscreenGesture = null
+    if (gesture.minimizing) {
+      const container = getContainer()
+      if (container?.hasPointerCapture(event.pointerId)) container.releasePointerCapture(event.pointerId)
+      mobilePlayerSuppressClickUntil = performance.now() + 350
+      mobileSurfaceSuppressTouchEndUntil = performance.now() + 350
+      mobileControlSuppressClickUntil = performance.now() + 350
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      miniPlayerDrag.finish(gesture.distance >= 64)
+      return true
+    }
+    if (gesture.restoring) return false
     if (gesture.adjusting) {
       adjustments.finish()
       const container = getContainer()
@@ -293,6 +322,7 @@ export function useMobileFullscreenGestures({
     mobileSurfaceTapTimer = null
     lastMobileSideTap = null
     const wasActive = mobileFullscreenGesture !== null || mobileFullscreenSwiping.value
+    if (mobileFullscreenGesture?.minimizing) miniPlayerDrag.finish(false)
     if (mobileFullscreenGesture?.adjusting) {
       adjustments.cancel()
       mobilePlayerSuppressClickUntil = performance.now() + 350
@@ -433,6 +463,7 @@ export function useMobileFullscreenGestures({
 
   onUnmounted(() => {
     clearMobileSeekFeedback()
+    miniPlayerDrag?.cancel()
     adjustments?.cancel()
     clearTimeout(mobileFullscreenSettleTimer)
     clearTimeout(mobileSurfaceTapTimer)

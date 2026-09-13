@@ -32,7 +32,7 @@
       aria-hidden="true"
     />
     <div
-      v-if="scrollMiniPlayerActive"
+      v-if="scrollMiniPlayerActive || scrollMiniPlayerDragStyle"
       ref="scrollMiniPlaceholder"
       class="scrollMiniPlaceholder"
       :style="{ height: `${scrollMiniPlaceholderHeight}px` }"
@@ -41,7 +41,7 @@
     <!-- eslint-disable vue/html-indent -->
     <Teleport
       to="#cross-tab-mini-player-layer"
-      :disabled="!scrollMiniPlayerDetached && !(useNativePlayback && scrollMiniPlayerActive)"
+      :disabled="!scrollMiniPlayerDragStyle && !scrollMiniPlayerDetached && !(useNativePlayback && scrollMiniPlayerActive)"
     >
     <!-- Keep controls visibility out of :class: Vue would erase Shaka's
          no-cursor class when the controls time out. -->
@@ -97,6 +97,7 @@
         captionCssVariables,
         captionPlayerVariables,
         scrollMiniPlayerActive ? scrollMiniPlayerStyle : undefined,
+        scrollMiniPlayerDragStyle,
         mobileFullscreenSwipeStyle,
         shortsPlayer ? { '--shorts-aspect-ratio': shortsAspectRatio } : undefined
       ]"
@@ -106,9 +107,6 @@
       @pointerenter="handleVideoZoomPointerEnter"
       @pointerleave="handleVideoZoomPointerLeave"
       @pointerdown.capture="handleVideoZoomPointerDown"
-      @pointermove.capture="handleVideoZoomPointerMove"
-      @pointerup.capture="handleVideoZoomPointerUp"
-      @pointercancel.capture="handleVideoZoomPointerCancel"
       @touchend.capture="handlePlayerTouchEnd"
       @focusin="handlePlayerFocusIn"
       @focusout="handleScrollMiniPlayerLeave"

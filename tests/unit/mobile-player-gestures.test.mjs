@@ -12,7 +12,7 @@ class ElementStub {
   closest(selectors) { return this.selector && selectors.includes(this.selector) ? this : null }
 }
 
-function fixture(t, { left = 'brightness', right = 'volume', fullscreenSwipe = true, mobile = true, mini = false, height = 200.5, nativeReplay = false } = {}) {
+function fixture(t, { left = 'brightness', right = 'volume', fullscreenSwipe = true, mobile = true, mini = false, height = 200.5, nativeReplay = false, minimize = false } = {}) {
   t.mock.method(globalThis, 'setTimeout', setTimeout)
   const previous = { document: globalThis.document, window: globalThis.window, Element: globalThis.Element }
   globalThis.Element = ElementStub
@@ -46,6 +46,12 @@ function fixture(t, { left = 'brightness', right = 'volume', fullscreenSwipe = t
           : target => target === surface,
         isScrollMiniPlayerActive: () => mini,
         getSwipeAction: side => side === 'left' ? left : right,
+        miniPlayerDrag: {
+          begin: () => { if (minimize) calls.push('drag-begin'); return minimize },
+          move: (x, y) => calls.push(['drag-move', x, y]),
+          finish: commit => calls.push(['drag-finish', commit]),
+          cancel() {},
+        },
         adjustments: {
           begin: action => calls.push(['begin', action]),
           update: delta => calls.push(['update', delta]),
@@ -189,3 +195,129 @@ for (const [placement, x] of [['toolbar', 50], ['center', 210]]) {
     assert.deepEqual(calls, [])
   })
 }
+
+for (const fullscreenSwipe of [true, false]) {
+  test(`center drag minimizes independently of fullscreen swipe setting (${fullscreenSwipe})`, t => {
+    const { gestures: g, event, calls, captures } = fixture(t, { minimize: true, fullscreenSwipe })
+    g.startMobileFullscreenGesture(event(210, 150))
+    assert.equal(g.moveMobileFullscreenGesture(event(212, 190)), true)
+    assert.equal(g.moveMobileFullscreenGesture(event(214, 260)), true)
+    assert.equal(g.finishMobileFullscreenGesture(event(214, 260)), true)
+    assert.deepEqual(calls, ['drag-begin', ['drag-move', 2, 40], ['drag-move', 4, 110], ['drag-finish', true]])
+    assert.equal(captures.size, 0)
+    const click = event(214, 260)
+    g.handleMobilePlayerSurfaceClick(click)
+    assert.equal(calls.includes('show'), false)
+    assert.equal(calls.includes('fullscreen'), false)
+  })
+}
+
+test('short or reversed center drag returns to the inline player', t => {
+  const { gestures: g, event, calls } = fixture(t, { minimize: true })
+  g.startMobileFullscreenGesture(event(210, 150))
+  g.moveMobileFullscreenGesture(event(210, 250))
+  g.moveMobileFullscreenGesture(event(210, 170))
+  g.finishMobileFullscreenGesture(event(210, 170))
+  assert.deepEqual(calls.at(-1), ['drag-finish', false])
+})
+
+for (const secondFinger of [false, true]) {
+  test(`canceling minimization restores the inline player (${secondFinger ? 'second finger' : 'pointer cancel'})`, t => {
+    const { gestures: g, event, calls, captures } = fixture(t, { minimize: true })
+    g.startMobileFullscreenGesture(event(210, 150))
+    g.moveMobileFullscreenGesture(event(210, 250))
+    if (secondFinger) g.startMobileFullscreenGesture(event(220, 200, { pointerId: 2, isPrimary: false }))
+    else g.cancelMobileFullscreenGesture(event())
+    assert.deepEqual(calls.at(-1), ['drag-finish', false])
+    assert.equal(captures.size, 0)
+    g.finishMobileFullscreenGesture(event(210, 250))
+    assert.equal(calls.filter(call => Array.isArray(call) && call[0] === 'drag-finish').length, 1)
+  })
+}
+
+test('side adjustments retain priority over minimization', t => {
+  const { gestures: g, event, calls } = fixture(t, { minimize: true })
+  g.startMobileFullscreenGesture(event(50, 150))
+  g.moveMobileFullscreenGesture(event(50, 250))
+  g.finishMobileFullscreenGesture(event(50, 250))
+  assert.equal(calls.includes('drag-begin'), false)
+  assert.deepEqual(calls[0], ['begin', 'brightness'])
+})
+
+
+for (const distance of [24, 120]) {
+  test(`upward mini-player swipe ${distance}px restores or cancels`, t => {
+    const { gestures: g, event, calls } = fixture(t, { mini: true, minimize: true })
+    g.startMobileFullscreenGesture(event(210, 400))
+    assert.equal(g.moveMobileFullscreenGesture(event(210, 400 - distance)), true)
+    assert.equal(g.finishMobileFullscreenGesture(event(210, 400 - distance)), true)
+    assert.deepEqual(calls, ['drag-begin', ['drag-move', 0, -distance], ['drag-finish', distance >= 64]])
+  })
+}
+
+test('a teleported player receives release outside its DOM and removes window listeners', () => {
+  const start = playerSource.indexOf('    const playerPointerIds =')
+  const end = playerSource.indexOf('    onBeforeUnmount(clearPlayerPointers)', start)
+  const handlers = new Map()
+  const calls = []
+  const track = vm.runInNewContext(`${playerSource.slice(start, end)}; trackPlayerPointer`, {
+    window: {
+      addEventListener: (type, handler) => handlers.set(type, handler),
+      removeEventListener: type => handlers.delete(type),
+    },
+    handleVideoZoomPointerMove: e => calls.push(['move', e.pointerId]),
+    handleVideoZoomPointerUp: e => calls.push(['up', e.pointerId]),
+    handleVideoZoomPointerCancel: e => calls.push(['cancel', e.pointerId]),
+  })
+  track({ pointerId: 7 })
+  handlers.get('pointermove')({ pointerId: 8 })
+  handlers.get('pointermove')({ pointerId: 7, target: {} })
+  handlers.get('pointerup')({ pointerId: 7, target: {}, type: 'pointerup' })
+  assert.deepEqual(calls, [['move', 7], ['up', 7]])
+  assert.equal(handlers.size, 0)
+  track({ pointerId: 9 })
+  handlers.get('pointercancel')({ pointerId: 9, type: 'pointercancel' })
+  assert.deepEqual(calls.at(-1), ['cancel', 9])
+  assert.equal(handlers.size, 0)
+})
+
+test('revealing Watch preserves an upward drag but hiding the app or changing video cancels it', () => {
+  const start = playerSource.indexOf('    watch([isActiveTab, scrollMiniPlayerActive, mobileAdjustmentsVisible, () => props.videoId]')
+  const end = playerSource.indexOf('\n    watch(', start + 10)
+  let changed
+  const resets = []
+  vm.runInNewContext(playerSource.slice(start, end), {
+    watch: (_sources, callback) => { changed = callback },
+    isActiveTab: {}, scrollMiniPlayerActive: {}, mobileAdjustmentsVisible: {}, props: { videoId: 'video' },
+    scrollMiniPlayerDragStyle: { value: {} },
+    mobileFullscreenBrightnessActive: { value: false },
+    resetMobileAdjustments: preserve => resets.push(preserve),
+  })
+  changed([true, true, true, 'video'], [false, true, true, 'video'])
+  changed([false, true, true, 'video'], [true, true, true, 'video'])
+  changed([true, true, false, 'video'], [true, true, true, 'video'])
+  changed([true, true, true, 'other'], [true, true, true, 'video'])
+  assert.deepEqual(resets, [true, false, false, false])
+})
+
+
+test('upward swipe also starts on the mini-player transparent touch layer', t => {
+  const { gestures: g, event, calls } = fixture(t, { mini: true, minimize: true })
+  const target = new ElementStub('.scrollMiniPointerLayer')
+  g.startMobileFullscreenGesture(event(210, 400, { target }))
+  assert.equal(g.moveMobileFullscreenGesture(event(210, 300, { target })), true)
+  g.finishMobileFullscreenGesture(event(210, 300, { target }))
+  assert.deepEqual(calls.at(-1), ['drag-finish', true])
+})
+
+test('a rejected scroll-mini-player restore never enters fullscreen or retains capture', t => {
+  const { gestures: g, event, calls, captures } = fixture(t, { mini: true, minimize: false })
+  g.startMobileFullscreenGesture(event(210, 300))
+  for (const y of [288, 260, 180]) {
+    assert.equal(g.moveMobileFullscreenGesture(event(210, y)), false)
+    assert.equal(g.mobileFullscreenSwiping.value, false)
+  }
+  assert.equal(g.finishMobileFullscreenGesture(event(210, 180)), false)
+  assert.equal(calls.includes('fullscreen'), false)
+  assert.equal(captures.size, 0)
+})

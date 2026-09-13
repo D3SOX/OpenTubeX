@@ -22,6 +22,7 @@ async function fixture({ fullscreen = true, chrome = [], dialogs = [], deferTran
   let panel = false
   let recommendations = false
   let ended = false
+  let poster = false
   let animating = false
   let id = 0
   const bounds = { x: 0, y: 0, width: 640, height: 360 }
@@ -34,6 +35,7 @@ async function fixture({ fullscreen = true, chrome = [], dialogs = [], deferTran
     getAnimations: () => animating ? [{ playState: 'running' }] : [],
     querySelectorAll(selector) { return menu && selector.includes('shaka-overflow-menu') ? [{ getAnimations: () => [], getBoundingClientRect: () => ({ x: 400, y: 100, width: 200, height: 240 }) }] : [] },
     querySelector(selector) {
+      if (selector === '.countdownPoster' && poster) return {}
       if (selector === '.shaka-controls-container') return controlsElement
       if (selector === '.endedPoster' && (ended || recommendations)) return { getBoundingClientRect: () => bounds }
       if (selector === '.endedScreen' && recommendations) return { getBoundingClientRect: () => bounds }
@@ -73,7 +75,8 @@ async function fixture({ fullscreen = true, chrome = [], dialogs = [], deferTran
   if (fullscreen) await screen.show()
   else await screen.attach()
   await flush()
-  return { screen, container, layouts, presentations, completeTransitions, completeFullscreen, fullscreenEvents, bounds, observers, window, styleWrites, flush, change({ visible = shown, menuOpen = menu, panelOpen = panel, containerAnimating = animating, endedRecommendations = recommendations, playbackEnded = ended }) {
+  return { screen, container, layouts, presentations, completeTransitions, completeFullscreen, fullscreenEvents, bounds, observers, window, styleWrites, flush, change({ visible = shown, menuOpen = menu, panelOpen = panel, containerAnimating = animating, endedRecommendations = recommendations, playbackEnded = ended, loadingPoster = poster }) {
+    poster = loadingPoster
     shown = visible; menu = menuOpen; panel = panelOpen
     recommendations = endedRecommendations
     ended = playbackEnded
@@ -119,6 +122,9 @@ test('live dragging and resizing keeps the page cutout fixed and restores its fi
   gesture(true)
   await f.flush()
   assert.equal(f.layouts.at(-1).gestureActive, true)
+  assert.equal(f.layouts.at(-1).miniPlayer, true, 'Inline drags must raise the native texture too')
+  assert.equal(f.layouts.at(-1).pageScroll, false, 'Drag bounds use viewport coordinates')
+  assert.equal(f.layouts.at(-1).controlsVisible, false)
   f.styleWrites.length = 0
   for (let i = 0; i < 20; i++) {
     f.bounds.width += 0.125
@@ -378,3 +384,44 @@ for (const fullscreen of [false, true]) {
   })
 
 }
+
+test('loading poster stays above an empty native surface throughout a drag', async () => {
+  const f = await fixture({ fullscreen: false })
+  f.change({ loadingPoster: true })
+  const gesture = new Event('native-player-gesture')
+  gesture.detail = true
+  f.container.dispatchEvent(gesture)
+  await f.flush()
+  assert.equal(f.layouts.at(-1).gestureActive, false)
+  assert.equal(f.layouts.at(-1).controlsVisible, false, 'Loading controls stay hidden while their poster is dragged')
+  assert.equal(f.layouts.at(-1).miniPlayer, false)
+  assert.equal(f.layouts.at(-1).videoVisible, true, 'Keep rendering below the poster so the first frame can arrive')
+  f.change({ loadingPoster: false })
+  await f.flush()
+  assert.equal(f.layouts.at(-1).gestureActive, true)
+  assert.equal(f.layouts.at(-1).videoVisible, true)
+  f.screen.destroy()
+})
+
+test('returning to a scrolling page sends a document-relative animation destination', async () => {
+  const f = await fixture({ fullscreen: false })
+  f.window.scrollY = 271.0857
+  const event = new Event('native-player-transition', { cancelable: true })
+  event.detail = { from: { x: 205, y: 723, width: 240, height: 135 }, to: { x: 0, y: 111 - f.window.scrollY, width: 460.8, height: 259.2 }, duration: 300 }
+  f.container.dispatchEvent(event)
+  await event.detail.finished
+  const motion = f.layouts.find(layout => layout.transition)
+  assert.equal(motion.pageScroll, true)
+  assert.ok(Math.abs(motion.y - 111) < 0.001)
+  f.screen.destroy()
+})
+
+test('loading poster uses the browser animation instead of raising an empty texture', async () => {
+  const f = await fixture({ fullscreen: false })
+  f.change({ loadingPoster: true })
+  const motion = new Event('native-player-transition', { cancelable: true })
+  motion.detail = { from: f.bounds, to: { ...f.bounds, x: 100 }, duration: 300 }
+  f.container.dispatchEvent(motion)
+  assert.equal(motion.defaultPrevented, false)
+  f.screen.destroy()
+})
