@@ -406,13 +406,11 @@ import QuickSettingsCustomizer from './QuickSettingsCustomizer/QuickSettingsCust
 
 import store from '../store/index'
 import { getThemeClassification, hasFixedThemeColors } from '../../appearanceSettings'
-import { BUILTIN_BASE_THEME_VALUES } from '../../constants'
-import { customThemeIdFromValue, customThemeValue } from '../../customTheme'
+import { customThemeIdFromValue } from '../../customTheme'
 
 import { colors } from '../helpers/colors'
 import { useColorTranslations } from '../composables/colors'
-import { androidDynamicColors } from '../helpers/dynamicColors'
-import { useBaseThemeNames } from '../composables/baseThemes'
+import { useBaseThemeOptions } from '../composables/baseThemes'
 import { useThumbnailSizeSlider } from '../composables/useThumbnailSizeSlider'
 import {
   MIN_THUMBNAIL_SIZE,
@@ -457,21 +455,8 @@ const capacitorLayoutModeNames = computed(() => [
   t('Settings.General Settings.Mobile Layout.Tablet')
 ])
 
-const builtInBaseThemeNames = useBaseThemeNames()
-const dynamicThemeIndex = BUILTIN_BASE_THEME_VALUES.indexOf('openTubeXDark') + 1
 const customThemes = computed(() => store.getters.getCustomThemes)
-const baseThemeValues = computed(() => [
-  ...BUILTIN_BASE_THEME_VALUES.slice(0, dynamicThemeIndex),
-  ...(androidDynamicColors.value.supported ? ['dynamic'] : []),
-  ...BUILTIN_BASE_THEME_VALUES.slice(dynamicThemeIndex),
-  ...customThemes.value.map(({ id }) => customThemeValue(id))
-])
-const baseThemeNames = computed(() => [
-  ...builtInBaseThemeNames.value.slice(0, dynamicThemeIndex),
-  ...(androidDynamicColors.value.supported ? [t('Settings.Theme Settings.Base Theme.Dynamic colors')] : []),
-  ...builtInBaseThemeNames.value.slice(dynamicThemeIndex),
-  ...customThemes.value.map(({ name }) => name)
-])
+const { baseThemeValues, baseThemeNames } = useBaseThemeOptions(customThemes)
 function systemThemeOptions(classification) {
   return baseThemeValues.value.flatMap((value, index) =>
     getThemeClassification(value, customThemes.value) === classification
