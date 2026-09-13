@@ -229,6 +229,10 @@
   min-block-size: 1px;
 }
 
+.commentAutoLoadSpace {
+  min-block-size: 64px;
+}
+
 .getCommentsTitle {
   padding-block: 8px;
   text-align: center;
@@ -846,8 +850,4 @@
   inline-size: max-content;
   max-inline-size: calc(100vw - 40px);
   inset-inline-end: 0;
-}
-
-.phoneCommentCard .commentAutoLoadSpace {
-  min-block-size: 64px;
 }
