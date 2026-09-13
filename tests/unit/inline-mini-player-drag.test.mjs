@@ -7,7 +7,7 @@ import { getScrollMiniInlineLayoutHeight } from '../../src/renderer/helpers/scro
 const source = readFileSync(new URL('../../src/renderer/components/ft-shaka-video-player/opentubex/useScrollMiniPlayer.js', import.meta.url), 'utf8')
 const dragSource = source.slice(source.indexOf('  let inlineDrag ='), source.indexOf('  function updateScrollMiniVideoAspectRatio'))
 
-function fixture({ reducedMotion = false, available = true, restoring = false } = {}) {
+function fixture({ reducedMotion = false, available = true, restoring = false, finishRejects = false } = {}) {
   let reads = 0
   let navigations = 0
   let previewProgress = 0
@@ -40,7 +40,10 @@ function fixture({ reducedMotion = false, available = true, restoring = false } 
       beginMinimizePreview() { navigations++ },
       beginRestorePreview() { return true },
       updateMinimizePreview(progress) { previewProgress = progress },
-      async finishMinimizePreview(commit) { if (!commit) navigations-- },
+      async finishMinimizePreview(commit) {
+        if (finishRejects) throw new Error('handoff failed')
+        if (!commit) navigations--
+      },
       clearMinimizePreview() {},
     },
     nextTick: async callback => callback(),
@@ -116,6 +119,17 @@ test('committing minimizes once and reduced motion skips the release animation',
   assert.equal(f.destination().left, 172.25)
   assert.equal(f.animations.length, 0)
   assert.equal(f.style.transform, undefined)
+})
+
+test('failed preview handoff still clears inline drag state', async () => {
+  const f = fixture({ reducedMotion: true, finishRejects: true })
+  f.methods.beginScrollMiniPlayerDrag()
+  f.methods.moveScrollMiniPlayerDrag(0, 200)
+  await assert.rejects(f.methods.finishScrollMiniPlayerDrag(true), /handoff failed/)
+  assert.equal(f.style.transform, undefined)
+  assert.equal(f.style.willChange, undefined)
+  assert.equal(f.events.at(-1), false)
+  assert.equal(f.methods.beginScrollMiniPlayerDrag(), true)
 })
 
 test('unavailable playback does not capture a drag', () => {

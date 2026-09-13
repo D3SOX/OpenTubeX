@@ -281,22 +281,27 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
     if (inlineDrag !== drag || !container.value) return
     if (inlineDragFrame !== null) cancelAnimationFrame(inlineDragFrame)
     renderScrollMiniPlayerDrag()
-    await settleScrollMiniPlayerDrag(commit)
-    if (inlineDrag !== drag || !container.value) return
-    // Navigation and layout changes happen behind the completed preview, after
-    // the video has reached the same endpoint as the normal mini-player motion.
-    await watchNavigation.finishMinimizePreview(commit)
-    if (inlineDrag !== drag || !container.value) return
-    if (drag.restoring && commit) {
-      deactivateScrollMiniPlayer()
-    } else if (commit && watchNavigation.detached.value) {
-      activateScrollMiniPlayer(false)
-      scrollMiniPlayerStashedSide.value = null
-      scrollMiniPlayerRestoreRect = null
-      applyScrollMiniPlayerRect(drag.to, false, true)
+    try {
+      await settleScrollMiniPlayerDrag(commit)
+      if (inlineDrag !== drag || !container.value) return
+      // Navigation and layout changes happen behind the completed preview, after
+      // the video has reached the same endpoint as the normal mini-player motion.
+      await watchNavigation.finishMinimizePreview(commit)
+      if (inlineDrag !== drag || !container.value) return
+      if (drag.restoring && commit) {
+        deactivateScrollMiniPlayer()
+      } else if (commit && watchNavigation.detached.value) {
+        activateScrollMiniPlayer(false)
+        scrollMiniPlayerStashedSide.value = null
+        scrollMiniPlayerRestoreRect = null
+        applyScrollMiniPlayerRect(drag.to, false, true)
+      }
+    } finally {
+      if (inlineDrag === drag) {
+        cancelScrollMiniPlayerDrag()
+        updateScrollMiniPlayer({ animateActivation: false })
+      }
     }
-    cancelScrollMiniPlayerDrag()
-    updateScrollMiniPlayer({ animateActivation: false })
   }
 
   function updateScrollMiniVideoAspectRatio() {
@@ -1323,6 +1328,7 @@ export function useScrollMiniPlayer({ container, fullWindowEnabled, getUi, isAct
     cancelScrollMiniPlayerBounce()
     cancelScrollMiniPlayerLayoutAnimation()
     cancelPendingScrollMiniScrollFrame()
+    cancelScrollMiniPlayerDrag()
 
     endScrollMiniPointerSession()
     clearScrollMiniVolumeHideTimeout()

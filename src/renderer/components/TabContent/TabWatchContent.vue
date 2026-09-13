@@ -8,7 +8,7 @@
       ref="watchRoot"
       :class="{ watchDragPreview: previewStyle }"
       :style="previewStyle"
-      :inert="!isWatchRoute && !previewActive"
+      :inert="!isWatchRoute"
       :aria-hidden="String(!isWatchRoute)"
     >
       <component

@@ -148,7 +148,7 @@ public class NativePlaybackScreenTest {
             assertNotEquals("The native controls cannot cover the scrolling countdown", android.graphics.Color.MAGENTA, image.getPixel(240, 220));
             assertEquals("The old countdown opening must close", android.graphics.Color.MAGENTA, image.getPixel(240, 330));
             image.recycle();
-            screen.animateVideo(new double[] { 0, 60, 400, 225 }, new double[] { 100, 200, 300, 168.75, 1000 }, 1200, 12, () -> {});
+            screen.animateVideo(new double[] { 0, 60, 400, 225 }, new double[] { 100, 200, 300, 168.75, 1000 }, 1200, 12, true, () -> {});
             assertTrue("Changing the video coordinate mode cannot move document-coordinate exclusions", screen.isOverMenu(240, 220));
             assertFalse(screen.isOverMenu(240, 330));
         });
@@ -183,7 +183,7 @@ public class NativePlaybackScreenTest {
             frame.getChildAt(0).setVisibility(View.INVISIBLE);
             web.setBackgroundColor(android.graphics.Color.RED);
             screen.setMenuBounds(new android.graphics.RectF[] { new android.graphics.RectF(0, 0, 1000, 80) });
-            screen.animateVideo(new double[] { 0, 0, 500, 281.25 }, new double[] { 100, 0, 400, 225, 1000 }, 1200, 12, () -> {});
+            screen.animateVideo(new double[] { 0, 0, 500, 281.25 }, new double[] { 100, 0, 400, 225, 1000 }, 1200, 12, false, () -> {});
             assertTrue("Moving video must draw over opaque route content", screen.indexOfChild(frame) > screen.indexOfChild((View) web.getParent()));
             assertFalse("Transport buttons must not travel separately from the video", controls.isFullyVisible());
         }, (screen, controls, web, engine) -> {
@@ -318,7 +318,7 @@ public class NativePlaybackScreenTest {
             frame[0] = screen.getChildAt(0);
             web.holdVisualState = true;
             screen.setGestureActive(true);
-            screen.animateVideo(new double[] { 200, 200, 400, 225 }, new double[] { 100, 200, 400, 225, 1000 }, 0, 12, screen::finishVideoTransition);
+            screen.animateVideo(new double[] { 200, 200, 400, 225 }, new double[] { 100, 200, 400, 225, 1000 }, 0, 12, false, screen::finishVideoTransition);
         }, (screen, controls, web, engine) -> {
             assertNotNull("The finished animation must release the previous gesture", web.heldVisualState);
             web.heldVisualState.onComplete(web.heldVisualStateId);
@@ -342,7 +342,7 @@ public class NativePlaybackScreenTest {
             if (mode.equals("resize")) {
                 screen.setGestureActive(true);
             } else if (mode.equals("animation")) {
-                screen.animateVideo(new double[] { 200, 200, 400, 225 }, new double[] { 100, 100, 600, 337.5, 1000 }, 1200, 12, () -> {});
+                screen.animateVideo(new double[] { 200, 200, 400, 225 }, new double[] { 100, 100, 600, 337.5, 1000 }, 1200, 12, false, () -> {});
             } else {
                 swipePage(screen);
                 if (mode.equals("handoff")) {
@@ -378,12 +378,12 @@ public class NativePlaybackScreenTest {
         withScreen((screen, controls, web, engine) -> {
             screen.setFullscreen(false);
             screen.setInlineVisible(true);
-            screen.animateVideo(new double[] { 0, 100, 1000, 562.5 }, new double[] { 600, 500, 350, 196.875, 1000 }, 1200, 12, () -> {});
+            screen.animateVideo(new double[] { 0, 100, 1000, 562.5 }, new double[] { 600, 500, 350, 196.875, 1000 }, 1200, 12, false, () -> {});
         }, (screen, controls, web, engine) -> {
             View frame = screen.getChildAt(screen.getChildCount() - 1);
             float left = frame.getTranslationX();
             float top = frame.getTranslationY();
-            screen.animateVideo(new double[] { 600, 500, 350, 196.875 }, new double[] { 0, 100, 1000, 562.5, 1000 }, 1200, 0, () -> {});
+            screen.animateVideo(new double[] { 600, 500, 350, 196.875 }, new double[] { 0, 100, 1000, 562.5, 1000 }, 1200, 0, false, () -> {});
             assertEquals("Reversing a transition must not jump to its old DOM destination", left, frame.getTranslationX(), 1f);
             assertEquals(top, frame.getTranslationY(), 1f);
         });
@@ -424,7 +424,7 @@ public class NativePlaybackScreenTest {
         withScreen((screen, controls, web, engine) -> {
             screen.setFullscreen(false);
             screen.setInlineVisible(true);
-            screen.animateVideo(new double[] { 0, 100, 1000, 562.5 }, new double[] { 600, 500, 350, 196.875, 1000 }, 0, 12, () -> {});
+            screen.animateVideo(new double[] { 0, 100, 1000, 562.5 }, new double[] { 600, 500, 350, 196.875, 1000 }, 0, 12, false, () -> {});
             View videoFrame = screen.getChildAt(screen.getChildCount() - 1);
             web.holdVisualState = true;
             screen.finishVideoTransition();
