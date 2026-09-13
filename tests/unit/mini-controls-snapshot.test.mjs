@@ -55,6 +55,12 @@ for (const failure of ['image loading', 'canvas rendering']) {
     assert.deepEqual(changes, ['data:image/png;base64,controls'])
     snapshot.update(root, 240, 135, false)
     assert.equal(images.length, 2, 'A successful retry is cached normally')
+    snapshot.update(null, 0, 0, false)
+    assert.deepEqual(changes, ['data:image/png;base64,controls', null])
+    snapshot.update(root, 240, 135, false)
+    assert.equal(images.length, 3, 'An unchanged image must render again after clearing the cache')
+    images[2].onload()
+    assert.deepEqual(changes, ['data:image/png;base64,controls', null, 'data:image/png;base64,controls'])
     snapshot.invalidate()
     // Change dimensions to require a fresh image, then fail persistently.
     snapshot.update(root, 241, 135, false)

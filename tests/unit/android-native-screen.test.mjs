@@ -492,8 +492,15 @@ for (const scale of [1, 2]) {
   })
 }
 
-test('reset clears cached mini controls before the native screen is reused', async () => {
+test('reset detaches mini controls before the native screen is reused', async () => {
   const f = await fixture({ fullscreen: false })
+  const root = { contains: () => false }
+  const querySelector = f.container.querySelector
+  f.container.classList.contains = name => name === 'scrollMiniPlayer'
+  f.container.querySelector = selector => selector === '.scrollMiniPlayerControls' ? root : querySelector(selector)
+  f.change({})
+  await f.flush()
+  assert.equal(f.snapshots.at(-1)[0], root)
   f.snapshots.length = 0
   f.screen.reset()
   assert.equal(f.snapshots.length, 1)
