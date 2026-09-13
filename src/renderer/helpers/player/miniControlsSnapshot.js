@@ -68,12 +68,17 @@ export function createMiniControlsSnapshot(onChange, onError) {
           canvas.getContext('2d').drawImage(source, 0, 0)
           const next = canvas.toDataURL('image/png')
           if (next !== image) { image = next; onChange(image) }
-        } catch (error) { onError(error) }
+        } catch (error) {
+          previousSvg = ''
+          dirty = true
+          onError(error)
+        }
       }
       source.onerror = () => {
         if (current !== sequence) return
         pending = false
         previousSvg = ''
+        dirty = true
         onError(new Error('Could not render mini-player controls'))
       }
       // Data SVGs keep foreignObject canvas reads origin-clean in Chromium.
